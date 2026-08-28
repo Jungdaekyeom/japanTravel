@@ -132,6 +132,36 @@ begin
 end;
 $$;
 
+create or replace function public.accept_rejected_opinion_by_author(
+  request_opinion_id uuid,
+  request_participant_id text,
+  request_accepted_at timestamptz
+)
+returns setof public.opinions
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  return query
+    update public.opinions
+    set rejection_accepted_at = request_accepted_at, updated_at = request_accepted_at
+    where id = request_opinion_id
+      and participant_id = request_participant_id
+      and status = 'rejected'
+      and rejection_accepted_at is null
+    returning public.opinions.*;
+  if found then return; end if;
+
+  return query
+    select * from public.opinions
+    where id = request_opinion_id
+      and participant_id = request_participant_id
+      and status = 'rejected'
+      and rejection_accepted_at is not null;
+end;
+$$;
+
 create or replace function public.delete_expired_route_geometry()
 returns integer
 language plpgsql
@@ -151,7 +181,8 @@ revoke all on function public.delete_expired_route_geometry() from public, anon,
 revoke all on function public.reserve_login_attempt(text) from public, anon, authenticated;
 revoke all on function public.finalize_login_attempt(uuid) from public, anon, authenticated;
 revoke all on function public.submit_opinion_if_allowed(text, smallint, text) from public, anon, authenticated;
-grant execute on function public.reserve_login_attempt(text), public.finalize_login_attempt(uuid), public.submit_opinion_if_allowed(text, smallint, text) to service_role;
+revoke all on function public.accept_rejected_opinion_by_author(uuid, text, timestamptz) from public, anon, authenticated;
+grant execute on function public.reserve_login_attempt(text), public.finalize_login_attempt(uuid), public.submit_opinion_if_allowed(text, smallint, text), public.accept_rejected_opinion_by_author(uuid, text, timestamptz) to service_role;
 
 select cron.schedule(
   'delete-expired-route-geometry',

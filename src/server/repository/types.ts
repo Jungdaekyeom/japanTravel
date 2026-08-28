@@ -84,6 +84,7 @@ export type TripRepository = {
   createOpinionIfNoUnacceptedRejection(input: CreateOpinionInput): Promise<OpinionRecord | null>;
   updateOpinion(id: string, input: UpdateOpinionInput): Promise<OpinionRecord | null>;
   transitionOpinion(id: string, fromStatus: OpinionStatus, input: UpdateOpinionInput): Promise<OpinionRecord | null>;
+  acceptRejectedOpinionByAuthor(id: string, participantId: string, acceptedAt: Date): Promise<OpinionRecord | null>;
   listRouteGeometry(now: Date): Promise<readonly RouteGeometryRecord[]>;
   findRouteGeometry(segmentKey: RouteSegmentKey, now: Date): Promise<RouteGeometryRecord | null>;
   upsertRouteGeometry(record: RouteGeometryRecord): Promise<void>;

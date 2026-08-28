@@ -2,6 +2,11 @@ export type DayNumber = 1 | 2 | 3 | 4 | 5;
 
 export type ViewerRole = "observer" | "contributor" | "admin";
 
+export type Viewer =
+  | { role: "observer" }
+  | { id: string; role: "contributor" }
+  | { id: string; role: "admin" };
+
 export type OpinionStatus = "pending" | "approved" | "rejected";
 
 export type RejectionCategory = "schedule" | "budget" | "feasibility" | "other";

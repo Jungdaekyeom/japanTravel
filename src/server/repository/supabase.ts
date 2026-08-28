@@ -181,6 +181,17 @@ export class SupabaseTripRepository implements TripRepository {
     return data ? opinion(data as Row) : null;
   }
 
+  async acceptRejectedOpinionByAuthor(id: string, participantId: string, acceptedAt: Date) {
+    const { data, error } = await this.client.rpc("accept_rejected_opinion_by_author", {
+      request_opinion_id: id,
+      request_participant_id: participantId,
+      request_accepted_at: acceptedAt.toISOString(),
+    });
+    fail(error);
+    const row = (data as Row[] | null)?.[0];
+    return row ? opinion(row) : null;
+  }
+
   async listRouteGeometry(now: Date) {
     const { data, error } = await this.client.from("route_geometry_cache").select("*").gt("expires_at", now.toISOString());
     fail(error);

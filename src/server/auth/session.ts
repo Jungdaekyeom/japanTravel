@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 
-import type { ViewerRole } from "../../trip/types";
+import type { Viewer } from "../../trip/types";
 import type { SessionRecord, TripRepository } from "../repository/types";
 
 import { hashSessionToken } from "./crypto";
@@ -29,7 +29,7 @@ function readCookie(request: Request, name: string) {
     .find(([key]) => key === name)?.[1];
 }
 
-export async function getViewer(request: Request, repository?: TripRepository, now = new Date()) {
+export async function getViewer(request: Request, repository?: TripRepository, now = new Date()): Promise<Viewer> {
   const token = readCookie(request, SESSION_COOKIE_NAME);
   if (!token) return { role: "observer" as const };
 
@@ -38,7 +38,8 @@ export async function getViewer(request: Request, repository?: TripRepository, n
   if (!session || session.expiresAt <= now) return { role: "observer" as const };
 
   const participant = await activeRepository.findParticipantById(session.participantId);
-  return participant
-    ? { id: participant.id, role: participant.role as Exclude<ViewerRole, "observer"> }
-    : { role: "observer" as const };
+  if (!participant) return { role: "observer" };
+  return participant.role === "admin"
+    ? { id: participant.id, role: "admin" }
+    : { id: participant.id, role: "contributor" };
 }

@@ -185,6 +185,21 @@ export class InMemoryTripRepository implements TripRepository {
     });
   }
 
+  async acceptRejectedOpinionByAuthor(id: string, participantId: string, acceptedAt: Date) {
+    return this.locked("opinionQueue", () => {
+      const opinion = this.opinions.find((candidate) =>
+        candidate.id === id && candidate.participantId === participantId && candidate.status === "rejected",
+      );
+      if (!opinion) return null;
+      if (opinion.rejectionAcceptedAt === null) {
+        const updated = { ...opinion, rejectionAcceptedAt: new Date(acceptedAt), updatedAt: new Date(acceptedAt) };
+        if (!validOpinion(updated)) throw new Error("Invalid opinion");
+        Object.assign(opinion, updated);
+      }
+      return copy(opinion);
+    });
+  }
+
   async listRouteGeometry(now: Date) {
     return copy(this.routeGeometry.filter((route) => route.expiresAt > now));
   }
