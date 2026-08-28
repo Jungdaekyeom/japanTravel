@@ -57,6 +57,28 @@ describe("buildTripPayload", () => {
     expect(serialized).not.toContain("Haruka");
   });
 
+  it("drops non-drawable and bounded-limit violations read from the route cache", () => {
+    const now = new Date("2026-09-10T00:00:00.000Z");
+    const route = (segmentKey: RouteGeometryRecord["segmentKey"], encodedPolyline: string): RouteGeometryRecord => ({
+      segmentKey,
+      status: "finalized",
+      encodedPolyline,
+      departureTime: "2026-10-02T01:00:00.000Z",
+      naritaRailChoice: null,
+      createdAt: new Date("2026-09-07T00:00:00.000Z"),
+      expiresAt: new Date("2026-10-06T15:00:00.000Z"),
+    });
+
+    const payload = buildTripPayload({ role: "observer" }, [], [
+      route("kix-kyoto", "??"),
+      route("kyoto-odawara", "????"),
+      route("odawara-tokyo", "A?".repeat(50_001)),
+      route("tokyo-narita", "A?".repeat(10_001)),
+    ], now);
+
+    expect(payload.railRoutes).toEqual([]);
+  });
+
   it("gives an observer fixed trip data and only each author's latest rejected opinion", () => {
     const payload = buildTripPayload({ role: "observer" }, [
       rejectedOpinion({ id: "old", body: "오래된 원문", publicSummary: "이전 요약", reviewedAt: new Date("2026-08-26T00:00:00.000Z") }),

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   GOOGLE_ROUTES_FIELD_MASK,
+  GOOGLE_ROUTES_TIMEOUT_MS,
   createGoogleRoutesClient,
   type GoogleRoutePlaceIds,
 } from "./google-routes";
@@ -61,9 +62,31 @@ describe("Google Routes rail client", () => {
         regionCode: "JP",
         transitPreferences: { allowedTravelModes: ["TRAIN"] },
       }),
+      signal: expect.any(AbortSignal),
     });
     expect(GOOGLE_ROUTES_FIELD_MASK).toBe("fallbackInfo,routes.legs.steps.travelMode,routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.transitDetails.transitLine.vehicle.type");
     expect(GOOGLE_ROUTES_FIELD_MASK).not.toContain("*");
+  });
+
+  it("uses the native abort timeout for the Google fetch boundary", async () => {
+    const signal = new AbortController().signal;
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(signal);
+    const fetch = vi.fn(async (_input: string, _init: RequestInit) => response([{ legs: [{ steps: [step("RAIL")] }] }]));
+    const client = createGoogleRoutesClient({ apiKey: "key", placeIds, fetch });
+
+    try {
+      await client.computeRailRoute({
+        segmentKey: "kix-kyoto",
+        departureTime: "2026-10-02T01:00:00.000Z",
+        naritaRailChoice: null,
+      });
+
+      expect(GOOGLE_ROUTES_TIMEOUT_MS).toBe(10_000);
+      expect(timeout).toHaveBeenCalledWith(10_000);
+      expect(fetch.mock.calls[0][1]?.signal).toBe(signal);
+    } finally {
+      timeout.mockRestore();
+    }
   });
 
   it.each([
@@ -121,6 +144,10 @@ describe("Google Routes rail client", () => {
     ["fallback metadata", [{ legs: [{ steps: [step("RAIL")] }] }], { fallbackInfo: { reason: "SERVER_ERROR" } }],
     ["empty routes", [], {}],
     ["malformed rail polyline", [{ legs: [{ steps: [step("RAIL", "_")] }] }], {}],
+    ["one-point rail polyline", [{ legs: [{ steps: [step("RAIL", "??")] }] }], {}],
+    ["duplicate-only rail polyline", [{ legs: [{ steps: [step("RAIL", "????")] }] }], {}],
+    ["oversized rail polyline", [{ legs: [{ steps: [step("RAIL", "A?".repeat(50_001))] }] }], {}],
+    ["excessive rail points", [{ legs: [{ steps: [step("RAIL", "A?".repeat(10_001))] }] }], {}],
     ["no rail step", [{ legs: [{ steps: [step("BUS", "??")] }] }], {}],
   ])("rejects %s", async (_case, routes, extra) => {
     const fetch = vi.fn(async () => response(routes as unknown[], extra as Record<string, unknown>));

@@ -11,6 +11,8 @@ import {
 const admin = { id: "daekyeom", role: "admin" as const };
 const opensAt = new Date("2026-09-06T15:00:00.000Z");
 const departureTime = "2026-10-02T01:00:00.000Z";
+const naritaDepartureTime = "2026-10-06T01:00:00.000Z";
+const odawaraDepartureTime = "2026-10-04T01:00:00.000Z";
 const encodedPolyline = "_p~iF~ps|U_ulLnnqC_mqNvxq`@";
 
 function client(result: string | Error = encodedPolyline): GoogleRoutesClient {
@@ -56,11 +58,47 @@ describe("finalizeRailRoute", () => {
     expect(routes.computeRailRoute).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["kix-kyoto", "2026-10-02T15:00:00.000Z", undefined],
+    ["kyoto-odawara", "2026-10-02T14:59:59.000Z", undefined],
+    ["odawara-tokyo", "2026-10-03T14:59:59.000Z", undefined],
+    ["tokyo-narita", "2026-10-05T14:59:59.000Z", "nex"],
+  ])("rejects a %s departure outside its Asia/Tokyo trip day without calling Google", async (segmentKey, invalidDepartureTime, naritaRailChoice) => {
+    const routes = client();
+
+    await expect(finalizeRailRoute(segmentKey, {
+      departureTime: invalidDepartureTime,
+      ...(naritaRailChoice ? { naritaRailChoice } : {}),
+    }, opensAt, {
+      repository: new InMemoryTripRepository(),
+      client: routes,
+      viewer: admin,
+    })).rejects.toSatisfy((error) => errorCode(error) === "invalid_departure_date");
+    expect(routes.computeRailRoute).not.toHaveBeenCalled();
+  });
+
+  it("converts an offset RFC3339 instant to the Asia/Tokyo calendar date", async () => {
+    const routes = client();
+    const offsetDepartureTime = "2026-10-01T16:00:00.000-07:00";
+
+    await finalizeRailRoute("kix-kyoto", { departureTime: offsetDepartureTime }, opensAt, {
+      repository: new InMemoryTripRepository(),
+      client: routes,
+      viewer: admin,
+    });
+
+    expect(routes.computeRailRoute).toHaveBeenCalledWith({
+      segmentKey: "kix-kyoto",
+      departureTime: offsetDepartureTime,
+      naritaRailChoice: null,
+    });
+  });
+
   it("stores one encoded polyline with the Narita choice and capped expiry", async () => {
     const repository = new InMemoryTripRepository();
     const routes = client();
 
-    const record = await finalizeRailRoute("tokyo-narita", { departureTime, naritaRailChoice: "nex" }, opensAt, {
+    const record = await finalizeRailRoute("tokyo-narita", { departureTime: naritaDepartureTime, naritaRailChoice: "nex" }, opensAt, {
       repository,
       client: routes,
       viewer: admin,
@@ -68,14 +106,14 @@ describe("finalizeRailRoute", () => {
 
     expect(routes.computeRailRoute).toHaveBeenCalledWith({
       segmentKey: "tokyo-narita",
-      departureTime,
+      departureTime: naritaDepartureTime,
       naritaRailChoice: "nex",
     });
     expect(record).toEqual({
       segmentKey: "tokyo-narita",
       status: "finalized",
       encodedPolyline,
-      departureTime,
+      departureTime: naritaDepartureTime,
       naritaRailChoice: "nex",
       createdAt: opensAt,
       expiresAt: new Date("2026-10-06T15:00:00.000Z"),
@@ -108,11 +146,27 @@ describe("finalizeRailRoute", () => {
     await expect(repository.findRouteGeometry("kix-kyoto", opensAt)).resolves.toEqual(existing);
   });
 
+  it.each([
+    ["one point", "??"],
+    ["duplicate points", "????"],
+    ["oversized encoding", "A?".repeat(50_001)],
+    ["excessive points", "A?".repeat(10_001)],
+  ])("does not cache %s returned by the Google boundary", async (_case, invalidPolyline) => {
+    const repository = new InMemoryTripRepository();
+
+    await expect(finalizeRailRoute("kix-kyoto", { departureTime }, opensAt, {
+      repository,
+      client: client(invalidPolyline),
+      viewer: admin,
+    })).rejects.toThrow("Invalid encoded polyline");
+    await expect(repository.listRouteGeometry(opensAt)).resolves.toEqual([]);
+  });
+
   it("keeps one valid row when concurrent finalizations target the same segment", async () => {
     const repository = new InMemoryTripRepository();
     await Promise.all([
-      finalizeRailRoute("odawara-tokyo", { departureTime }, opensAt, { repository, client: client("??_ibE_ibE"), viewer: admin }),
-      finalizeRailRoute("odawara-tokyo", { departureTime }, opensAt, { repository, client: client(encodedPolyline), viewer: admin }),
+      finalizeRailRoute("odawara-tokyo", { departureTime: odawaraDepartureTime }, opensAt, { repository, client: client("??_ibE_ibE"), viewer: admin }),
+      finalizeRailRoute("odawara-tokyo", { departureTime: odawaraDepartureTime }, opensAt, { repository, client: client(encodedPolyline), viewer: admin }),
     ]);
 
     const records = await repository.listRouteGeometry(opensAt);

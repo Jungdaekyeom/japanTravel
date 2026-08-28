@@ -18,10 +18,13 @@ type FinalizeDependencies = { repository: TripRepository; client: GoogleRoutesCl
 function errorResponse(error: unknown) {
   if (error instanceof RouteFinalizationError) {
     const status = error.code === "forbidden" ? 403
-      : error.code === "invalid_request" ? 400
+      : error.code === "invalid_request" || error.code === "invalid_departure_date" ? 400
         : error.code === "not_open" ? 409
           : 410;
-    return NextResponse.json({ error: error.code }, { status });
+    const message = error.code === "invalid_departure_date"
+      ? "출발 시각은 해당 철도 구간의 여행 날짜와 일치해야 합니다."
+      : undefined;
+    return NextResponse.json({ error: error.code, ...(message ? { message } : {}) }, { status });
   }
   return NextResponse.json({
     error: "route_unavailable",

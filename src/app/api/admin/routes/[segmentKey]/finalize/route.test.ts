@@ -8,6 +8,7 @@ import { createFinalizeRailRouteHandler } from "./route";
 
 const now = new Date("2026-09-06T15:00:00.000Z");
 const departureTime = "2026-10-02T01:00:00.000Z";
+const naritaDepartureTime = "2026-10-06T01:00:00.000Z";
 
 function setup() {
   const repository = new InMemoryTripRepository({
@@ -78,10 +79,25 @@ describe("POST /api/admin/routes/[segmentKey]/finalize", () => {
     expect(client.computeRailRoute).not.toHaveBeenCalled();
   });
 
+  it("returns a clear 400 when the instant falls outside the segment trip day in Japan", async () => {
+    const { repository, client } = setup();
+    const response = await createFinalizeRailRouteHandler({ repository, client, now: () => now })(
+      request("admin-token", { departureTime: "2026-10-02T15:00:00.000Z" }),
+      { params: Promise.resolve({ segmentKey: "kix-kyoto" }) },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "invalid_departure_date",
+      message: "출발 시각은 해당 철도 구간의 여행 날짜와 일치해야 합니다.",
+    });
+    expect(client.computeRailRoute).not.toHaveBeenCalled();
+  });
+
   it("returns only a public status after a successful race-safe upsert", async () => {
     const { repository, client } = setup();
     const response = await createFinalizeRailRouteHandler({ repository, client, now: () => now })(
-      request("admin-token", { departureTime, naritaRailChoice: "skyliner" }),
+      request("admin-token", { departureTime: naritaDepartureTime, naritaRailChoice: "skyliner" }),
       { params: Promise.resolve({ segmentKey: "tokyo-narita" }) },
     );
 

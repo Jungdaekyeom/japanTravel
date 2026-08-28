@@ -2,6 +2,7 @@ import type { RouteSegmentKey } from "../repository/types";
 import { decodePolyline, encodePolyline, type PolylineCoordinate } from "./polyline";
 
 export const GOOGLE_ROUTES_FIELD_MASK = "fallbackInfo,routes.legs.steps.travelMode,routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.transitDetails.transitLine.vehicle.type";
+export const GOOGLE_ROUTES_TIMEOUT_MS = 10_000;
 
 export type GoogleRoutePlaceIds = {
   KIX: string;
@@ -125,6 +126,7 @@ export function createGoogleRoutesClient({
             regionCode: "JP",
             transitPreferences: { allowedTravelModes: ["TRAIN"] },
           }),
+          signal: AbortSignal.timeout(GOOGLE_ROUTES_TIMEOUT_MS),
         });
         if (!response.ok) throw new Error("Google route unavailable");
         return selectedPolyline(await response.json());
