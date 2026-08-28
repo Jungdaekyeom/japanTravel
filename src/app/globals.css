@@ -1,0 +1,30 @@
+:root {
+  --background: #0d1117;
+  --foreground: #f0f6fc;
+  --surface: #161b22;
+  --border: #30363d;
+  --accent: #58a6ff;
+  --muted: #8b949e;
+  font-family: Arial, "Noto Sans KR", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
