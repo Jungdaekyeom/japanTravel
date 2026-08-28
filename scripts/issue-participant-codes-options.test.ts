@@ -6,6 +6,6 @@ describe("parseIssueCodeMode", () => {
   it("refuses existing codes by default and permits only an explicit rotation flag", () => {
     expect(parseIssueCodeMode([])).toBe("issue");
     expect(parseIssueCodeMode(["--rotate"])).toBe("rotate");
-    expect(() => parseIssueCodeMode(["--force"])).toThrow("Usage");
+    expect(() => parseIssueCodeMode(["--force"])).toThrow("Usage: pnpm codes:issue [--rotate]");
   });
 });

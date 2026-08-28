@@ -12,7 +12,7 @@ let repository: ReturnType<typeof createSupabaseRepository> | undefined;
 export function getTripRepository() {
   if (!repository) {
     const env = getServerEnv();
-    repository = createSupabaseRepository(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
+    repository = createSupabaseRepository(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY);
   }
   return repository;
 }

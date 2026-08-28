@@ -1,9 +1,12 @@
 import { z } from "zod";
 
-const serverEnvSchema = z.object({
+const participantCodeEnvSchema = z.object({
   SUPABASE_URL: z.url(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  SUPABASE_SECRET_KEY: z.string().min(1),
   SESSION_PEPPER: z.string().min(16),
+});
+
+const serverEnvSchema = participantCodeEnvSchema.extend({
   INVITE_TOKEN: z.string().min(1),
 });
 
@@ -18,11 +21,18 @@ const googleRoutesEnvSchema = z.object({
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
+export type ParticipantCodeEnv = z.infer<typeof participantCodeEnvSchema>;
 export type GoogleRoutesEnv = z.infer<typeof googleRoutesEnvSchema>;
 
 export function getServerEnv(): ServerEnv {
   const parsed = serverEnvSchema.safeParse(process.env);
   if (!parsed.success) throw new Error("Missing required server environment variables");
+  return parsed.data;
+}
+
+export function getParticipantCodeEnv(): ParticipantCodeEnv {
+  const parsed = participantCodeEnvSchema.safeParse(process.env);
+  if (!parsed.success) throw new Error("Missing required participant code environment variables");
   return parsed.data;
 }
 

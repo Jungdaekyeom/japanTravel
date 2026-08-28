@@ -36,11 +36,19 @@ test("legal pages stay available on desktop and link to Google policies", async 
 });
 
 test("responses and metadata prevent indexing without blocking Google Maps", async ({ page }) => {
-  const response = await page.goto("/terms");
+  const response = await page.goto("/t/e2e-invite-token");
+  const policy = response?.headers()["content-security-policy"] ?? "";
   expect(response?.headers()["referrer-policy"]).toBe("strict-origin");
   expect(response?.headers()["x-robots-tag"]).toContain("noindex");
-  expect(response?.headers()["content-security-policy"]).toContain("https://maps.googleapis.com");
-  expect(response?.headers()["content-security-policy"]).toContain("https://maps.gstatic.com");
+  expect(policy.match(/default-src/g)).toHaveLength(1);
+  expect(policy).toContain("script-src 'self' 'unsafe-inline' 'unsafe-eval'");
+  expect(policy).toContain("https://*.googleapis.com");
+  expect(policy).toContain("https://*.gstatic.com");
+  expect(policy).toContain("*.google.com");
+  expect(policy).toContain("https://*.ggpht.com");
+  expect(policy).toContain("*.googleusercontent.com");
+  expect(policy).toContain("frame-src *.google.com");
+  expect(policy).toMatch(/connect-src [^;]*data: blob:/);
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 
   const robots = await page.request.get("/robots.txt");

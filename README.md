@@ -13,7 +13,7 @@
 
 ## 로컬 실행
 
-Node.js 22와 pnpm 10을 사용합니다.
+Node.js 22.13 이상 23 미만과 pnpm 10을 사용합니다.
 
 ```bash
 pnpm install --frozen-lockfile
@@ -25,19 +25,19 @@ pnpm dev
 
 ## Supabase 설정
 
-1. Production용 Supabase 프로젝트를 만들고 Project URL과 서버용 secret/service-role key를 준비합니다.
+1. Production용 Supabase 프로젝트를 만들고 Project URL과 서버용 `sb_secret_...` secret key를 준비합니다.
 2. Supabase CLI로 프로젝트를 연결한 뒤 `supabase/migrations`의 SQL을 파일명 순서대로 적용합니다. 이미 초기 migration을 적용한 환경에도 `202608280002`와 `202608280003`을 반드시 적용합니다.
 3. 초기 SQL은 `pgcrypto`, `pg_cron`, RLS, 브라우저 역할 권한 제거, 로그인 제한 RPC와 만료 경로 삭제 Cron을 구성합니다. 프로젝트에서 `pg_cron` 사용 가능 여부와 매일 15:00 UTC(자정 KST/JST) 작업을 확인합니다.
-4. `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, 16자 이상의 무작위 `SESSION_PEPPER`를 `.env.local`에 설정합니다. pepper는 `openssl rand -base64 32`처럼 암호학적으로 안전하게 생성합니다.
+4. `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, 16자 이상의 무작위 `SESSION_PEPPER`를 `.env.local`에 설정합니다. pepper는 `openssl rand -base64 32`처럼 암호학적으로 안전하게 생성합니다. 코드 발급 명령에는 `INVITE_TOKEN`이 필요하지 않습니다.
 5. 참가자 코드를 한 번 발급합니다.
 
 ```bash
 pnpm codes:issue
 ```
 
-명령은 네 개의 6자리 코드를 터미널에 한 번만 출력하고 DB에는 salt와 scrypt 해시만 저장합니다. 출력은 비밀번호 관리자 등 안전한 곳으로 즉시 옮긴 뒤 각 사람에게 따로 전달합니다. 기존 코드가 있으면 기본 실행은 중단되며, 실제 분실·노출 시에만 `pnpm codes:issue -- --rotate`로 전부 교체합니다.
+명령은 네 개의 6자리 코드를 터미널에 한 번만 출력하고 DB에는 salt와 scrypt 해시만 저장합니다. 출력은 비밀번호 관리자 등 안전한 곳으로 즉시 옮긴 뒤 각 사람에게 따로 전달합니다. 기존 코드가 있으면 기본 실행은 중단되며, 실제 분실·노출 시에만 `pnpm codes:issue --rotate`로 전부 교체합니다.
 
-Production 데이터는 브라우저에서 Supabase를 직접 읽지 않습니다. Vercel 서버만 secret/service-role key를 사용합니다.
+Production 데이터는 브라우저에서 Supabase를 직접 읽지 않습니다. Vercel 서버만 secret key를 사용합니다.
 
 ## Google Maps 설정
 
@@ -57,6 +57,7 @@ Google Cloud 프로젝트에서 결제를 연결하고 다음 두 키를 분리�
 - 좌표는 Google 지도 위에서만 사용하며 생성 후 최대 30일 또는 2026년 10월 7일 00:00(JST) 중 이른 시각까지만 저장됩니다. 기본 Google 저작권 표시를 가리지 마세요.
 
 키 제한과 할당량은 [Google Maps API 보안 권장사항](https://developers.google.com/maps/api-security-best-practices)을 기준으로 최종 확인합니다.
+지도 화면 `/t/*`에만 [Maps JavaScript API allowlist CSP](https://developers.google.com/maps/documentation/javascript/content-security-policy)의 Google 도메인, `blob:`과 `unsafe-eval`을 허용합니다. API·약관·개인정보·robots와 그 밖의 경로에는 `unsafe-eval`을 허용하지 않습니다.
 
 ## 초대와 서버 비밀값
 

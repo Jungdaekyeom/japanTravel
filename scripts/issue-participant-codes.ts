@@ -3,7 +3,7 @@ import { randomInt, randomBytes } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 
 import { hashParticipantCode } from "../src/server/auth/crypto.ts";
-import { getServerEnv } from "../src/server/env.ts";
+import { getParticipantCodeEnv } from "../src/server/env.ts";
 import { TRIP_DEFINITION } from "../src/trip/definition.ts";
 import { parseIssueCodeMode } from "./issue-participant-codes-options.ts";
 
@@ -17,8 +17,8 @@ function makeCode(issued: Set<string>) {
 
 async function main() {
   const mode = parseIssueCodeMode(process.argv.slice(2));
-  const env = getServerEnv();
-  const client = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+  const env = getParticipantCodeEnv();
+  const client = createClient(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const { data: existing, error: lookupError } = await client.from("participants").select("id, code_hash");

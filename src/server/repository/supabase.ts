@@ -223,8 +223,8 @@ export class SupabaseTripRepository implements TripRepository {
   }
 }
 
-export function createSupabaseRepository(url: string, serviceRoleKey: string) {
+export function createSupabaseRepository(url: string, secretKey: string) {
   return new SupabaseTripRepository(
-    createClient(url, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } }),
+    createClient(url, secretKey, { auth: { autoRefreshToken: false, persistSession: false } }),
   );
 }
