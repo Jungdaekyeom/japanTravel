@@ -2,9 +2,10 @@
 
 import { useState, type FormEvent } from "react";
 
+import { DAY_OPTIONS } from "../trip/public";
 import styles from "./TripPanel.module.css";
 
-export function OpinionComposer({ onRefresh, blocked }: { onRefresh: () => Promise<void> | void; blocked: boolean }) {
+export function OpinionComposer({ onRefresh, blocked }: { onRefresh: () => Promise<void>; blocked: boolean }) {
   const [targetDay, setTargetDay] = useState("");
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
@@ -39,7 +40,7 @@ export function OpinionComposer({ onRefresh, blocked }: { onRefresh: () => Promi
           대상 일정
           <select value={targetDay} onChange={(event) => setTargetDay(event.target.value)}>
             <option value="">전체 일정</option>
-            {[1, 2, 3, 4, 5].map((day) => <option key={day} value={day}>{day}일차</option>)}
+            {DAY_OPTIONS.map((day) => <option key={day} value={day}>{day}일차</option>)}
           </select>
         </label>
         <label>

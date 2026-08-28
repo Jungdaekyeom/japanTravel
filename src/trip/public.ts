@@ -1,0 +1,90 @@
+export const DAY_OPTIONS = [1, 2, 3, 4, 5] as const;
+export type DayNumber = typeof DAY_OPTIONS[number];
+
+export const REJECTION_CATEGORIES = ["schedule", "budget", "feasibility", "other"] as const;
+export type RejectionCategory = typeof REJECTION_CATEGORIES[number];
+export const REJECTION_CATEGORY_OPTIONS: readonly { value: RejectionCategory; label: string }[] = [
+  { value: "schedule", label: "일정" },
+  { value: "budget", label: "예산" },
+  { value: "feasibility", label: "실현 가능성" },
+  { value: "other", label: "기타" },
+];
+
+export type ViewerRole = "observer" | "contributor" | "admin";
+export type OpinionStatus = "pending" | "approved" | "rejected";
+export type ItineraryDay = {
+  day: DayNumber;
+  date: string;
+  title: string;
+  summary: string;
+  overnight: "교토" | "하코네" | "도쿄" | null;
+};
+export type PlaceKey = "busan" | "incheon" | "kix" | "kyoto" | "odawara" | "hakone" | "tokyo" | "nrt";
+export type Place = { name: string; latitude: number; longitude: number };
+export type RailSegment = {
+  key: "kix-kyoto" | "kyoto-odawara" | "odawara-tokyo" | "tokyo-narita";
+  from: PlaceKey;
+  to: PlaceKey;
+  naritaRailChoices?: readonly ["skyliner", "nex"];
+};
+export type PublicTripDefinition = {
+  startDate: string;
+  endDate: string;
+  days: readonly ItineraryDay[];
+  railSegments: readonly RailSegment[];
+  places: Record<PlaceKey, Place>;
+};
+
+export const PUBLIC_TRIP_DEFINITION = {
+  startDate: "2026-10-02",
+  endDate: "2026-10-06",
+  days: [
+    { day: 1, date: "2026-10-02", title: "간사이국제공항에서 교토", summary: "부산·인천에서 KIX 도착 후 하루카로 교토 이동", overnight: "교토" },
+    { day: 2, date: "2026-10-03", title: "교토에서 하코네", summary: "신칸센으로 오다와라 이동 후 하코네 권역 방문", overnight: "하코네" },
+    { day: 3, date: "2026-10-04", title: "하코네에서 도쿄", summary: "오다와라에서 신칸센으로 도쿄 이동", overnight: "도쿄" },
+    { day: 4, date: "2026-10-05", title: "도쿄 관광", summary: "도쿄 관광", overnight: "도쿄" },
+    { day: 5, date: "2026-10-06", title: "도쿄에서 나리타국제공항", summary: "철도로 나리타국제공항 이동 후 귀국", overnight: null },
+  ],
+  railSegments: [
+    { key: "kix-kyoto", from: "kix", to: "kyoto" },
+    { key: "kyoto-odawara", from: "kyoto", to: "odawara" },
+    { key: "odawara-tokyo", from: "odawara", to: "tokyo" },
+    { key: "tokyo-narita", from: "tokyo", to: "nrt", naritaRailChoices: ["skyliner", "nex"] },
+  ],
+  places: {
+    busan: { name: "김해국제공항", latitude: 35.1796, longitude: 128.9382 },
+    incheon: { name: "인천국제공항", latitude: 37.4602, longitude: 126.4407 },
+    kix: { name: "간사이국제공항", latitude: 34.4347, longitude: 135.244 },
+    kyoto: { name: "교토", latitude: 35.0116, longitude: 135.7681 },
+    odawara: { name: "오다와라", latitude: 35.2551, longitude: 139.1596 },
+    hakone: { name: "하코네", latitude: 35.2324, longitude: 139.1069 },
+    tokyo: { name: "도쿄", latitude: 35.6762, longitude: 139.6503 },
+    nrt: { name: "나리타국제공항", latitude: 35.772, longitude: 140.3929 },
+  },
+} as const satisfies PublicTripDefinition;
+
+export type PublicTrip = typeof PUBLIC_TRIP_DEFINITION;
+export type PublicRejection = { authorName: string; publicSummary: string; reason: string; accepted: boolean };
+export type OwnOpinion = { id: string; targetDay: DayNumber | null; body: string; status: OpinionStatus; accepted: boolean };
+export type ReviewOpinion = {
+  id: string;
+  participantId: string;
+  authorName: string;
+  targetDay: DayNumber | null;
+  body: string;
+  status: OpinionStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  rejectionCategory: RejectionCategory | null;
+  publicSummary: string | null;
+  rejectionReason: string | null;
+  rejectionAcceptedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type PublicPayload = { trip: PublicTrip; publicRejections: PublicRejection[] };
+export type ObserverPayload = PublicPayload & { role: "observer" };
+export type ContributorPayload = PublicPayload & { role: "contributor"; displayName: string; ownOpinions: OwnOpinion[] };
+export type AdminPayload = PublicPayload & { role: "admin"; displayName: string; reviewQueue: ReviewOpinion[] };
+export type TripPayload = ObserverPayload | ContributorPayload | AdminPayload;

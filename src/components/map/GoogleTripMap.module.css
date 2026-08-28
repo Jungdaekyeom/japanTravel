@@ -19,5 +19,9 @@
 .fallback li { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid #30363d; border-radius: 10px; background: rgba(13, 17, 23, 0.7); }
 .fallback li[data-selected="true"] { border-color: #58a6ff; }
 .fallback li span { color: #9da7b3; font-size: 0.78rem; }
+.railFallback { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.railFallback span { display: grid; gap: 2px; border-left: 2px dashed #8c959f; padding-left: 8px; }
+.railFallback small { overflow: hidden; color: #8c959f; font-size: 0.62rem; text-overflow: ellipsis; }
+.railFallback strong { font-size: 0.7rem; }
 .fallback button { min-height: 44px; border: 1px solid #58a6ff; border-radius: 10px; background: #1f6feb; color: white; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .marker { transition: none; } }

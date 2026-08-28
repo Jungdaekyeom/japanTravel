@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
-import type { TripPayload } from "../server/trip/payload";
-import type { DayNumber } from "../trip/types";
+import type { DayNumber, TripPayload } from "../trip/public";
 import { AdminReviewControls } from "./AdminReviewControls";
 import { OpinionComposer } from "./OpinionComposer";
 import { RejectionCards } from "./RejectionCards";
@@ -81,7 +80,7 @@ export function TripPanel({ payload, selectedDay, state, focusOnOpen, onSelectDa
         </header>
         <div className={styles.sessionRow}>
           <span className={styles.roleBadge}>{roleLabel[payload.role]} 세션</span>
-          <span className={styles.sessionState}>{payload.role === "observer" ? "공개 일정만 보기" : "개인 역할 활성"}</span>
+          <span className={styles.sessionState}>{payload.role === "observer" ? "공개 일정만 보기" : `${payload.displayName} · 개인 역할 활성`}</span>
         </div>
         <ol className={styles.days}>
           {payload.trip.days.map((day) => (

@@ -1,5 +1,4 @@
-import { TRIP_DEFINITION } from "../../trip/definition";
-import type { DayNumber } from "../../trip/types";
+import { PUBLIC_TRIP_DEFINITION, type DayNumber } from "../../trip/public";
 
 import styles from "./GoogleTripMap.module.css";
 
@@ -12,12 +11,17 @@ export function StaticItinerary({ selectedDay, message, onRetry }: { selectedDay
         <p role="alert">{message}</p>
       </div>
       <ol>
-        {TRIP_DEFINITION.days.map((day) => (
+        {PUBLIC_TRIP_DEFINITION.days.map((day) => (
           <li key={day.day} data-selected={selectedDay === day.day}>
             <strong>{day.day}일차 · {day.title}</strong><span>{day.summary}</span>
           </li>
         ))}
       </ol>
+      <div className={styles.railFallback} aria-label="철도 경로 상태">
+        {PUBLIC_TRIP_DEFINITION.railSegments.map((segment) => (
+          <span key={segment.key}><small>{segment.key}</small><strong>경로 확정 전</strong></span>
+        ))}
+      </div>
       <button type="button" onClick={onRetry}>지도 다시 불러오기</button>
     </section>
   );

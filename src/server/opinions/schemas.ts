@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { DAY_OPTIONS, REJECTION_CATEGORIES, type DayNumber } from "../../trip/public";
 
-const daySchema = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]);
+const daySchema = z.custom<DayNumber>((value) => typeof value === "number" && DAY_OPTIONS.includes(value as DayNumber));
 
 export const opinionIdSchema = z.object({ id: z.uuid() }).strict();
 
@@ -10,7 +11,7 @@ export const submissionSchema = z.object({
 }).strict();
 
 export const rejectionSchema = z.object({
-  category: z.enum(["schedule", "budget", "feasibility", "other"]),
+  category: z.enum(REJECTION_CATEGORIES),
   publicSummary: z.string().trim().min(1).max(80),
   reason: z.string().trim().min(1).max(300),
 }).strict();

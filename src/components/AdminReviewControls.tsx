@@ -2,32 +2,15 @@
 
 import { useState } from "react";
 
-import { TRIP_DEFINITION } from "../trip/definition";
+import { REJECTION_CATEGORY_OPTIONS, type RejectionCategory, type ReviewOpinion } from "../trip/public";
 import styles from "./TripPanel.module.css";
 
-type ReviewOpinion = {
-  id: string;
-  participantId: string;
-  targetDay: number | null;
-  body: string;
-  status: string;
-  reviewedBy: string | null;
-  reviewedAt: string | null;
-  rejectionCategory: string | null;
-  publicSummary: string | null;
-  rejectionReason: string | null;
-  rejectionAcceptedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-function ReviewCard({ opinion, onRefresh }: { opinion: ReviewOpinion; onRefresh: () => Promise<void> | void }) {
-  const [category, setCategory] = useState("schedule");
+function ReviewCard({ opinion, onRefresh }: { opinion: ReviewOpinion; onRefresh: () => Promise<void> }) {
+  const [category, setCategory] = useState<RejectionCategory>("schedule");
   const [publicSummary, setPublicSummary] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const participant = TRIP_DEFINITION.participants.find(({ id }) => id === opinion.participantId);
 
   async function act(kind: "approve" | "reject") {
     setBusy(true);
@@ -51,18 +34,15 @@ function ReviewCard({ opinion, onRefresh }: { opinion: ReviewOpinion; onRefresh:
   return (
     <article className={styles.card}>
       <div className={styles.cardHeader}>
-        <strong>{participant?.name ?? opinion.participantId}</strong>
+        <strong>{opinion.authorName}</strong>
         <span>{opinion.targetDay ? `${opinion.targetDay}일차` : "전체"}</span>
       </div>
       <p>{opinion.body}</p>
       <button type="button" disabled={busy} onClick={() => act("approve")}>의견 승인</button>
       <div className={styles.form}>
         <label>반려 분류
-          <select value={category} onChange={(event) => setCategory(event.target.value)}>
-            <option value="schedule">일정</option>
-            <option value="budget">예산</option>
-            <option value="feasibility">실현 가능성</option>
-            <option value="other">기타</option>
+          <select value={category} onChange={(event) => setCategory(event.target.value as RejectionCategory)}>
+            {REJECTION_CATEGORY_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
         <label>공개 요약<input value={publicSummary} onChange={(event) => setPublicSummary(event.target.value)} maxLength={80} /></label>
@@ -74,7 +54,7 @@ function ReviewCard({ opinion, onRefresh }: { opinion: ReviewOpinion; onRefresh:
   );
 }
 
-export function AdminReviewControls({ opinions, onRefresh }: { opinions: readonly ReviewOpinion[]; onRefresh: () => Promise<void> | void }) {
+export function AdminReviewControls({ opinions, onRefresh }: { opinions: readonly ReviewOpinion[]; onRefresh: () => Promise<void> }) {
   const pending = opinions.filter((opinion) => opinion.status === "pending");
   return (
     <section className={styles.section} aria-labelledby="review-title">

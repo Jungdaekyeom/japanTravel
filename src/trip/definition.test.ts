@@ -39,8 +39,8 @@ describe("TRIP_DEFINITION", () => {
 
   it("defines the airport and city coordinates used by the map", () => {
     expect(TRIP_DEFINITION.places).toEqual({
-      busan: { name: "부산", latitude: 35.1796, longitude: 129.0756 },
-      incheon: { name: "인천", latitude: 37.4563, longitude: 126.7052 },
+      busan: { name: "김해국제공항", latitude: 35.1796, longitude: 128.9382 },
+      incheon: { name: "인천국제공항", latitude: 37.4602, longitude: 126.4407 },
       kix: { name: "간사이국제공항", latitude: 34.4347, longitude: 135.244 },
       kyoto: { name: "교토", latitude: 35.0116, longitude: 135.7681 },
       odawara: { name: "오다와라", latitude: 35.2551, longitude: 139.1596 },

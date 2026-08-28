@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest";
 import { buildDayLayers, FULL_ROUTE_LINES } from "./placeholder-routes";
 
 describe("placeholder route geometry", () => {
+  it("starts the flight curves at the literal PUS and ICN airport coordinates", () => {
+    expect(FULL_ROUTE_LINES.find(({ key }) => key === "pus-kix")?.path[0]).toEqual({ lat: 35.1796, lng: 128.9382 });
+    expect(FULL_ROUTE_LINES.find(({ key }) => key === "icn-kix")?.path[0]).toEqual({ lat: 37.4602, lng: 126.4407 });
+  });
+
   it("keeps the complete trip visible with four labeled dashed rail placeholders", () => {
     expect(FULL_ROUTE_LINES.map(({ key }) => key)).toEqual([
       "pus-kix",

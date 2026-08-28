@@ -1,5 +1,4 @@
-import { TRIP_DEFINITION } from "../../trip/definition";
-import type { DayNumber, PlaceKey } from "../../trip/types";
+import { PUBLIC_TRIP_DEFINITION, type DayNumber, type PlaceKey } from "../../trip/public";
 import type { PlaybackStage } from "./animation";
 
 export type Coordinate = { lat: number; lng: number };
@@ -14,7 +13,7 @@ export type MapPin = { key: string; label: string; position: Coordinate };
 export type DayLayers = { lines: readonly MapLine[]; pins: readonly MapPin[]; stages: readonly PlaybackStage[] };
 
 function place(key: PlaceKey): Coordinate {
-  const value = TRIP_DEFINITION.places[key];
+  const value = PUBLIC_TRIP_DEFINITION.places[key];
   return { lat: value.latitude, lng: value.longitude };
 }
 

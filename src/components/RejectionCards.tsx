@@ -2,12 +2,10 @@
 
 import { useState } from "react";
 
+import type { OwnOpinion, PublicRejection } from "../trip/public";
 import styles from "./TripPanel.module.css";
 
-export type PublicRejection = { authorName: string; publicSummary: string; reason: string; accepted: boolean };
-export type OwnOpinion = { id: string; targetDay: number | null; body: string; status: string; accepted: boolean };
-
-export function RejectionCards({ publicRejections, ownOpinions = [], onRefresh }: { publicRejections: readonly PublicRejection[]; ownOpinions?: readonly OwnOpinion[]; onRefresh: () => Promise<void> | void }) {
+export function RejectionCards({ publicRejections, ownOpinions = [], onRefresh }: { publicRejections: readonly PublicRejection[]; ownOpinions?: readonly OwnOpinion[]; onRefresh: () => Promise<void> }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const pendingOwnRejections = ownOpinions.filter((opinion) => opinion.status === "rejected" && !opinion.accepted);

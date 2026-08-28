@@ -8,6 +8,7 @@ import { AdminReviewControls } from "./AdminReviewControls";
 const opinion = {
   id: "22222222-2222-4222-8222-222222222222",
   participantId: "gyuyeol",
+  authorName: "이규열",
   targetDay: 2 as const,
   body: "하코네에서 하루 더 머물고 싶어요.",
   status: "pending" as const,
@@ -60,5 +61,14 @@ describe("AdminReviewControls", () => {
         body: JSON.stringify({ category: "feasibility", publicSummary: "하코네 체류 연장", reason: "다음 숙박 예약과 맞지 않습니다." }),
       }),
     ));
+  });
+
+  it("surfaces a refresh failure after the mutation succeeds", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ opinion: {} }), { status: 200 })));
+    render(<AdminReviewControls opinions={[opinion]} onRefresh={vi.fn(async () => { throw new Error("최신 검토 목록을 불러오지 못했습니다."); })} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "의견 승인" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("최신 검토 목록을 불러오지 못했습니다.");
   });
 });

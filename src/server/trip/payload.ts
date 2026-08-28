@@ -1,15 +1,22 @@
 import { TRIP_DEFINITION } from "../../trip/definition";
+import { PUBLIC_TRIP_DEFINITION } from "../../trip/public";
+import type {
+  AdminPayload,
+  ContributorPayload,
+  ObserverPayload,
+  ReviewOpinion,
+  TripPayload,
+} from "../../trip/public";
 import type { OpinionViewer } from "../opinions/service";
 import type { OpinionRecord } from "../repository/types";
 
-export type Trip = Omit<typeof TRIP_DEFINITION, "participants">;
-export type PublicRejection = { authorName: string; publicSummary: string; reason: string; accepted: boolean };
-export type OwnOpinion = { id: string; targetDay: OpinionRecord["targetDay"]; body: string; status: OpinionRecord["status"]; accepted: boolean };
-export type ReviewOpinion = ReturnType<typeof reviewOpinion>;
-export type ObserverPayload = { role: "observer"; trip: Trip; publicRejections: PublicRejection[] };
-export type ContributorPayload = { role: "contributor"; trip: Trip; publicRejections: PublicRejection[]; ownOpinions: OwnOpinion[] };
-export type AdminPayload = { role: "admin"; trip: Trip; publicRejections: PublicRejection[]; reviewQueue: ReviewOpinion[] };
-export type TripPayload = ObserverPayload | ContributorPayload | AdminPayload;
+export type { AdminPayload, ContributorPayload, ObserverPayload, ReviewOpinion, TripPayload } from "../../trip/public";
+
+const participantNames = new Map<string, string>(TRIP_DEFINITION.participants.map((participant) => [participant.id, participant.name]));
+
+function participantName(id: string) {
+  return participantNames.get(id) ?? id;
+}
 
 function toIso(value: Date | null) {
   return value?.toISOString() ?? null;
@@ -26,9 +33,8 @@ function publicRejections(opinions: readonly OpinionRecord[]) {
     const current = latestByAuthor.get(opinion.participantId);
     if (!current || isLaterRejection(opinion, current)) latestByAuthor.set(opinion.participantId, opinion);
   }
-  const names = new Map<string, string>(TRIP_DEFINITION.participants.map((participant) => [participant.id, participant.name]));
   return [...latestByAuthor.values()].flatMap((opinion) => {
-    const authorName = names.get(opinion.participantId);
+    const authorName = participantNames.get(opinion.participantId);
     return authorName && opinion.publicSummary && opinion.rejectionReason
       ? [{ authorName, publicSummary: opinion.publicSummary, reason: opinion.rejectionReason, accepted: opinion.rejectionAcceptedAt !== null }]
       : [];
@@ -49,6 +55,7 @@ function reviewOpinion(opinion: OpinionRecord) {
   return {
     id: opinion.id,
     participantId: opinion.participantId,
+    authorName: participantName(opinion.participantId),
     targetDay: opinion.targetDay,
     body: opinion.body,
     status: opinion.status,
@@ -67,11 +74,10 @@ export function buildTripPayload(viewer: Extract<OpinionViewer, { role: "observe
 export function buildTripPayload(viewer: Extract<OpinionViewer, { role: "contributor" }>, opinions: readonly OpinionRecord[]): ContributorPayload;
 export function buildTripPayload(viewer: Extract<OpinionViewer, { role: "admin" }>, opinions: readonly OpinionRecord[]): AdminPayload;
 export function buildTripPayload(viewer: OpinionViewer, opinions: readonly OpinionRecord[]): TripPayload;
-export function buildTripPayload(viewer: OpinionViewer, opinions: readonly OpinionRecord[]) {
-  const { participants: _participants, ...trip } = TRIP_DEFINITION;
+export function buildTripPayload(viewer: OpinionViewer, opinions: readonly OpinionRecord[]): TripPayload {
   if (viewer.role === "contributor") {
-    return { role: "contributor" as const, trip, publicRejections: publicRejections(opinions), ownOpinions: opinions.filter((opinion) => opinion.participantId === viewer.id).map(ownOpinion) };
+    return { role: "contributor" as const, displayName: participantName(viewer.id), trip: PUBLIC_TRIP_DEFINITION, publicRejections: publicRejections(opinions), ownOpinions: opinions.filter((opinion) => opinion.participantId === viewer.id).map(ownOpinion) };
   }
-  if (viewer.role === "admin") return { role: "admin" as const, trip, publicRejections: publicRejections(opinions), reviewQueue: opinions.map(reviewOpinion) };
-  return { role: "observer" as const, trip, publicRejections: publicRejections(opinions) };
+  if (viewer.role === "admin") return { role: "admin" as const, displayName: participantName(viewer.id), trip: PUBLIC_TRIP_DEFINITION, publicRejections: publicRejections(opinions), reviewQueue: opinions.map(reviewOpinion) };
+  return { role: "observer" as const, trip: PUBLIC_TRIP_DEFINITION, publicRejections: publicRejections(opinions) };
 }

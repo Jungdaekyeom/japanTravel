@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import type { DayNumber } from "../../trip/types";
+import type { DayNumber } from "../../trip/public";
 import { createRoutePlayback, pathAtProgress } from "./animation";
 import { loadGoogleMaps, type GoogleMapsLibraries } from "./map-script";
 import { buildDayLayers, FULL_ROUTE_LINES, FULL_ROUTE_PINS, type MapLine } from "./placeholder-routes";
@@ -18,6 +18,7 @@ type GoogleTripMapProps = {
 
 export function GoogleTripMap({ selectedDay, playbackRequest, reducedMotion, onPlaybackComplete }: GoogleTripMapProps) {
   const [retryKey, setRetryKey] = useState(0);
+  const [retryAttempt, setRetryAttempt] = useState(0);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const mapElement = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
@@ -27,6 +28,7 @@ export function GoogleTripMap({ selectedDay, playbackRequest, reducedMotion, onP
   const markers = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const markerContent = useRef(new Map<string, HTMLElement>());
   const playback = useRef<ReturnType<typeof createRoutePlayback> | null>(null);
+  const completedRequest = useRef<string | null>(null);
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAP_ID || (process.env.NODE_ENV === "production" ? undefined : "DEMO_MAP_ID");
   const configured = Boolean(apiKey && mapId);
@@ -90,16 +92,21 @@ export function GoogleTripMap({ selectedDay, playbackRequest, reducedMotion, onP
     };
   }, [apiKey, configured, mapId, retryKey]);
 
+  const requestKey = selectedDay && playbackRequest > 0 ? `${selectedDay}:${playbackRequest}` : null;
+
   useEffect(() => {
     if ((configured && loadState !== "error") || !selectedDay || playbackRequest === 0) return;
+    if (completedRequest.current === requestKey) return;
+    completedRequest.current = requestKey;
     onPlaybackComplete(selectedDay);
-  }, [configured, loadState, onPlaybackComplete, playbackRequest, reducedMotion, selectedDay]);
+  }, [configured, loadState, onPlaybackComplete, playbackRequest, requestKey, selectedDay]);
 
   useEffect(() => {
     if (loadState !== "ready" || !selectedDay || playbackRequest === 0 || !map.current || !libraries.current) return;
     const currentMap = map.current;
     const loaded = libraries.current;
     const layers = buildDayLayers(selectedDay);
+    const alreadyCompleted = completedRequest.current === requestKey;
     playback.current?.cancel();
     selectedLines.current.forEach((line) => line.setMap(null));
     selectedLines.current.clear();
@@ -108,7 +115,7 @@ export function GoogleTripMap({ selectedDay, playbackRequest, reducedMotion, onP
       selectedLines.current.set(line.key, new loaded.maps.Polyline({
         ...polylineStyle(line, true),
         map: currentMap,
-        path: pathAtProgress(line.path, 0),
+        path: pathAtProgress(line.path, alreadyCompleted ? 1 : 0),
         zIndex: 3,
       }));
     }
@@ -117,6 +124,16 @@ export function GoogleTripMap({ selectedDay, playbackRequest, reducedMotion, onP
       content.dataset.selected = String(selectedPinKeys.has(key));
     });
     fitDay(currentMap, selectedDay);
+
+    const clearSelection = () => {
+      selectedLines.current.forEach((line) => line.setMap(null));
+      selectedLines.current.clear();
+      markerContent.current.forEach((content) => {
+        content.dataset.active = "false";
+        content.dataset.selected = "false";
+      });
+    };
+    if (alreadyCompleted) return clearSelection;
 
     const routePlayback = createRoutePlayback({
       stages: layers.stages,
@@ -130,26 +147,32 @@ export function GoogleTripMap({ selectedDay, playbackRequest, reducedMotion, onP
           content.dataset.active = String(key === state.currentPinKey);
         });
       },
-      onComplete: () => onPlaybackComplete(selectedDay),
+      onComplete: () => {
+        completedRequest.current = requestKey;
+        onPlaybackComplete(selectedDay);
+      },
     });
     playback.current = routePlayback;
     routePlayback.play();
     return () => {
       routePlayback.cancel();
-      selectedLines.current.forEach((line) => line.setMap(null));
-      selectedLines.current.clear();
-      markerContent.current.forEach((content) => {
-        content.dataset.active = "false";
-        content.dataset.selected = "false";
-      });
+      clearSelection();
     };
-  }, [loadState, onPlaybackComplete, playbackRequest, reducedMotion, selectedDay]);
+  }, [loadState, onPlaybackComplete, playbackRequest, reducedMotion, requestKey, selectedDay]);
 
   if (!configured || loadState === "error") {
-    const message = !configured && process.env.NODE_ENV === "production"
-      ? "지도 설정이 없어 정적 일정을 표시합니다."
+    const message = !configured
+      ? retryAttempt > 0
+        ? `지도 설정을 다시 확인했습니다. API 키와 지도 ID를 확인해 주세요. (${retryAttempt}회)`
+        : "지도 설정이 없어 정적 일정을 표시합니다."
       : "지도를 불러올 수 없어 정적 일정을 표시합니다.";
-    return <StaticItinerary selectedDay={selectedDay} message={message} onRetry={() => { setLoadState("loading"); setRetryKey((key) => key + 1); }} />;
+    return <StaticItinerary selectedDay={selectedDay} message={message} onRetry={() => {
+      setRetryAttempt((attempt) => attempt + 1);
+      if (configured) {
+        setLoadState("loading");
+        setRetryKey((key) => key + 1);
+      }
+    }} />;
   }
   return (
     <section className={styles.frame} aria-label="여행 경로 지도">

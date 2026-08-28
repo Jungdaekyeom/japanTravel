@@ -4,8 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { TripPanel } from "../../../components/TripPanel";
 import { GoogleTripMap } from "../../../components/map/GoogleTripMap";
-import type { TripPayload } from "../../../server/trip/payload";
-import type { DayNumber } from "../../../trip/types";
+import type { DayNumber, TripPayload } from "../../../trip/public";
 import styles from "./TripApp.module.css";
 
 function useMedia(query: string) {
@@ -33,15 +32,28 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
   const [liveStatus, setLiveStatus] = useState("전체 5일 경로 표시 중");
   const closeTimer = useRef<number | null>(null);
   const openButtonRef = useRef<HTMLButtonElement>(null);
+  const refreshId = useRef(0);
+  const refreshController = useRef<AbortController | null>(null);
 
   const refresh = useCallback(async () => {
+    const id = ++refreshId.current;
+    refreshController.current?.abort();
+    const controller = new AbortController();
+    refreshController.current = controller;
     try {
-      const response = await fetch(`/api/trip/${encodeURIComponent(inviteToken)}`, { cache: "no-store" });
+      const response = await fetch(`/api/trip/${encodeURIComponent(inviteToken)}`, { cache: "no-store", signal: controller.signal });
       if (!response.ok) throw new Error("일정을 불러오지 못했습니다.");
-      setPayload(await response.json() as TripPayload);
+      const nextPayload = await response.json() as TripPayload;
+      if (controller.signal.aborted || id !== refreshId.current) return;
+      setPayload(nextPayload);
       setLoadError("");
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "일정을 불러오지 못했습니다.");
+      if (controller.signal.aborted || id !== refreshId.current) return;
+      const message = error instanceof Error ? error.message : "일정을 불러오지 못했습니다.";
+      setLoadError(message);
+      throw new Error(message);
+    } finally {
+      if (id === refreshId.current) refreshController.current = null;
     }
   }, [inviteToken]);
 
@@ -49,21 +61,24 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
     let intervalId: number | undefined;
     const schedule = () => {
       if (intervalId !== undefined) window.clearInterval(intervalId);
-      intervalId = document.visibilityState === "visible" ? window.setInterval(refresh, 30_000) : undefined;
+      intervalId = document.visibilityState === "visible" ? window.setInterval(() => { void refresh().catch(() => {}); }, 30_000) : undefined;
     };
     const onVisibility = () => {
       schedule();
-      if (document.visibilityState === "visible") void refresh();
+      if (document.visibilityState === "visible") void refresh().catch(() => {});
     };
-    const onFocus = () => { if (document.visibilityState === "visible") void refresh(); };
+    const onFocus = () => { if (document.visibilityState === "visible") void refresh().catch(() => {}); };
 
-    void refresh();
+    void refresh().catch(() => {});
     schedule();
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", onFocus);
     return () => {
       if (intervalId !== undefined) window.clearInterval(intervalId);
       if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+      refreshId.current += 1;
+      refreshController.current?.abort();
+      refreshController.current = null;
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", onFocus);
     };
@@ -111,7 +126,7 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
   if (!payload) {
     return (
       <main className={styles.loading}>
-        {loadError ? <><p role="alert">{loadError}</p><button type="button" onClick={() => void refresh()}>일정 다시 불러오기</button></> : <p role="status">일정을 불러오는 중…</p>}
+        {loadError ? <><p role="alert">{loadError}</p><button type="button" onClick={() => void refresh().catch(() => {})}>일정 다시 불러오기</button></> : <p role="status">일정을 불러오는 중…</p>}
       </main>
     );
   }
@@ -119,6 +134,7 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
   return (
     <main className={styles.app}>
       <GoogleTripMap selectedDay={selectedDay} playbackRequest={playbackRequest} reducedMotion={reducedMotion === true} onPlaybackComplete={playbackComplete} />
+      {loadError && <p className={styles.staleWarning} role="alert">최신 데이터를 불러오지 못했습니다. 기존 일정을 표시합니다.</p>}
       {(panelOpen || panelClosing) && (
         <TripPanel
           payload={payload}

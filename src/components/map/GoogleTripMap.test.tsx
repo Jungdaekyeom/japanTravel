@@ -48,6 +48,25 @@ function installGoogleBoundary() {
   return importLibrary;
 }
 
+function installFrames() {
+  let nextId = 0;
+  const callbacks = new Map<number, FrameRequestCallback>();
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    const id = ++nextId;
+    callbacks.set(id, callback);
+    return id;
+  });
+  vi.stubGlobal("cancelAnimationFrame", (id: number) => callbacks.delete(id));
+  return {
+    pending: () => callbacks.size,
+    step(time: number) {
+      const pending = [...callbacks.values()];
+      callbacks.clear();
+      pending.forEach((callback) => callback(time));
+    },
+  };
+}
+
 beforeAll(() => {
   process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = "browser-key";
   process.env.NEXT_PUBLIC_GOOGLE_MAP_ID = "test-map-id";
@@ -55,6 +74,7 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   FakeMap.instances = [];
   FakePolyline.instances = [];
   FakeAdvancedMarkerElement.instances = [];
@@ -67,18 +87,51 @@ afterAll(() => {
 });
 
 describe("GoogleTripMap", () => {
-  it("renders StaticItinerary on script failure and recovers through the retry button", async () => {
+  it("recovers a selected-day script failure with the final overlay and no duplicate completion or replay", async () => {
+    const frames = installFrames();
+    const onPlaybackComplete = vi.fn();
     delete (window as unknown as { google?: unknown }).google;
-    render(<GoogleTripMap selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+    render(<GoogleTripMap selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
     const script = document.querySelector<HTMLScriptElement>("script[data-google-maps-script]");
     expect(script).not.toBeNull();
     script?.dispatchEvent(new Event("error"));
 
     expect(await screen.findByRole("region", { name: "정적 여행 일정" })).toBeInTheDocument();
+    await waitFor(() => expect(onPlaybackComplete).toHaveBeenCalledTimes(1));
     installGoogleBoundary();
     fireEvent.click(screen.getByRole("button", { name: "지도 다시 불러오기" }));
 
     await waitFor(() => expect(screen.getByLabelText("여행 경로 지도")).toBeInTheDocument());
+    await waitFor(() => expect(FakeMap.instances).toHaveLength(1));
+    expect(onPlaybackComplete).toHaveBeenCalledTimes(1);
+    expect(frames.pending()).toBe(0);
+    const selected = FakePolyline.instances.find(({ options }) => options.zIndex === 3);
+    expect((selected?.path as Array<{ lat: number; lng: number }>).at(-1)).toEqual({ lat: 35.6762, lng: 139.6503 });
+  });
+
+  it("cancels the previous live playback and overlay before starting only the newly selected day", async () => {
+    const frames = installFrames();
+    installGoogleBoundary();
+    const onPlaybackComplete = vi.fn();
+    const { rerender } = render(<GoogleTripMap selectedDay={1} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
+
+    await waitFor(() => expect(frames.pending()).toBe(1));
+    const firstSelection = FakePolyline.instances.filter(({ options }) => options.zIndex === 3);
+    expect(firstSelection).toHaveLength(3);
+    frames.step(0);
+
+    rerender(<GoogleTripMap selectedDay={2} playbackRequest={2} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
+    await waitFor(() => expect(frames.pending()).toBe(1));
+    expect(firstSelection.every(({ map }) => map === null)).toBe(true);
+
+    frames.step(0);
+    frames.step(1400);
+    frames.step(1850);
+    frames.step(2300);
+
+    expect(onPlaybackComplete).toHaveBeenCalledTimes(1);
+    expect(onPlaybackComplete).toHaveBeenCalledWith(2);
+    expect(FakePolyline.instances.filter(({ options, map }) => options.zIndex === 3 && map !== null)).toHaveLength(2);
   });
 
   it("loads a muted map with a map ID, Advanced Markers, full route, and four textual rail placeholders", async () => {
@@ -131,7 +184,11 @@ describe("GoogleTripMap", () => {
 
     expect(screen.getByRole("region", { name: "정적 여행 일정" })).toBeInTheDocument();
     expect(screen.getByText("3일차 일정")).toBeInTheDocument();
+    expect(screen.getAllByText("경로 확정 전")).toHaveLength(4);
     await waitFor(() => expect(onPlaybackComplete).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole("button", { name: "지도 다시 불러오기" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("지도 설정을 다시 확인했습니다");
+    expect(onPlaybackComplete).toHaveBeenCalledOnce();
     process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = "browser-key";
   });
 });

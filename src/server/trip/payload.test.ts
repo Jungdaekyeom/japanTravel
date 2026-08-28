@@ -59,6 +59,7 @@ describe("buildTripPayload", () => {
     const payload = buildTripPayload({ id: "gyuyeol", role: "contributor" }, [own, another]);
 
     if (payload.role !== "contributor") throw new Error("expected contributor payload");
+    expect(payload.displayName).toBe("이규열");
     expect(payload.ownOpinions).toEqual([expect.objectContaining({ id: "own", body: "내 비공개 원문", status: "rejected", accepted: false })]);
     expect(payload.publicRejections).toEqual(expect.arrayContaining([expect.objectContaining({ authorName: "박준수", publicSummary: "일정 조정 필요" })]));
     expect(JSON.stringify(payload.ownOpinions)).not.toContain("다른 사람 비공개 원문");
@@ -70,9 +71,11 @@ describe("buildTripPayload", () => {
     ]);
 
     if (payload.role !== "admin") throw new Error("expected admin payload");
+    expect(payload.displayName).toBe("정대겸");
     expect(payload.reviewQueue).toEqual([expect.objectContaining({
       id: "review",
       participantId: "gyuyeol",
+      authorName: "이규열",
       body: "검토할 원문",
       status: "rejected",
       rejectionCategory: "schedule",
