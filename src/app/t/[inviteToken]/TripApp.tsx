@@ -97,7 +97,7 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
       setPanelClosing(false);
       closeTimer.current = null;
       afterClose?.();
-    }, 250);
+    }, reducedMotion === true ? 0 : 250);
   }
 
   function selectDay(day: DayNumber) {

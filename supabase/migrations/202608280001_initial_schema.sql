@@ -37,7 +37,7 @@ create table public.opinions (
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
   reviewed_by text references public.participants(id),
   reviewed_at timestamptz,
-  rejection_category text check (rejection_category in ('schedule', 'budget', 'feasibility', 'other')),
+  rejection_category text check (rejection_category in ('distance_over_50km', 'schedule_impossible', 'unsafe_or_illegal', 'purpose_conflict', 'other')),
   public_summary text check (char_length(public_summary) between 1 and 80),
   rejection_reason text check (char_length(rejection_reason) between 1 and 300),
   rejection_accepted_at timestamptz,

@@ -85,7 +85,7 @@ describe("InMemoryTripRepository", () => {
         status: "rejected",
         reviewedBy: "daekyeom",
         reviewedAt: new Date("2026-08-28T00:00:00.000Z"),
-        rejectionCategory: "schedule",
+        rejectionCategory: "schedule_impossible",
         publicSummary: "일정상 어려움",
         rejectionReason: "이동 시간이 부족합니다.",
         rejectionAcceptedAt: null,

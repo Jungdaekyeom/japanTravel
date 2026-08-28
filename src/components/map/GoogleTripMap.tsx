@@ -40,6 +40,8 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
   useEffect(() => {
     if (!configured || !apiKey || !mapId) return;
     let active = true;
+    const currentSelectedLines = selectedLines.current;
+    const currentMarkerContent = markerContent.current;
     setLoadState("loading");
 
     void loadGoogleMaps(apiKey).then((loaded) => {
@@ -85,12 +87,12 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
       active = false;
       playback.current?.cancel();
       baseLines.current.forEach((line) => line.setMap(null));
-      selectedLines.current.forEach((line) => line.setMap(null));
+      currentSelectedLines.forEach((line) => line.setMap(null));
       markers.current.forEach((marker) => { marker.map = null; });
       baseLines.current = [];
-      selectedLines.current.clear();
+      currentSelectedLines.clear();
       markers.current = [];
-      markerContent.current.clear();
+      currentMarkerContent.clear();
       map.current = null;
       libraries.current = null;
     };

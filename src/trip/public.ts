@@ -1,12 +1,19 @@
 export const DAY_OPTIONS = [1, 2, 3, 4, 5] as const;
 export type DayNumber = typeof DAY_OPTIONS[number];
 
-export const REJECTION_CATEGORIES = ["schedule", "budget", "feasibility", "other"] as const;
+export const REJECTION_CATEGORIES = [
+  "distance_over_50km",
+  "schedule_impossible",
+  "unsafe_or_illegal",
+  "purpose_conflict",
+  "other",
+] as const;
 export type RejectionCategory = typeof REJECTION_CATEGORIES[number];
 export const REJECTION_CATEGORY_OPTIONS: readonly { value: RejectionCategory; label: string }[] = [
-  { value: "schedule", label: "일정" },
-  { value: "budget", label: "예산" },
-  { value: "feasibility", label: "실현 가능성" },
+  { value: "distance_over_50km", label: "기준지 50km 초과" },
+  { value: "schedule_impossible", label: "일정상 불가능" },
+  { value: "unsafe_or_illegal", label: "위법·안전 문제" },
+  { value: "purpose_conflict", label: "여행 목적 저해" },
   { value: "other", label: "기타" },
 ];
 

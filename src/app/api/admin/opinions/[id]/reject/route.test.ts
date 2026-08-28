@@ -30,8 +30,8 @@ describe("POST /api/admin/opinions/[id]/reject", () => {
     const context = { params: Promise.resolve({ id: opinion.id }) };
 
     const invalid = await handler(rejectRequest({ category: "unknown", publicSummary: "요약", reason: "사유" }), context);
-    const rejected = await handler(rejectRequest({ category: "schedule", publicSummary: "  요약  ", reason: "  사유  " }), context);
-    const repeated = await handler(rejectRequest({ category: "schedule", publicSummary: "요약", reason: "사유" }), context);
+    const rejected = await handler(rejectRequest({ category: "schedule_impossible", publicSummary: "  요약  ", reason: "  사유  " }), context);
+    const repeated = await handler(rejectRequest({ category: "schedule_impossible", publicSummary: "요약", reason: "사유" }), context);
 
     expect(invalid.status).toBe(400);
     await expect(invalid.json()).resolves.toEqual({ error: "invalid_request" });

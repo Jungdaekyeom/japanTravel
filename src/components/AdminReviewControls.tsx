@@ -6,7 +6,7 @@ import { REJECTION_CATEGORY_OPTIONS, type RejectionCategory, type ReviewOpinion 
 import styles from "./TripPanel.module.css";
 
 function ReviewCard({ opinion, onRefresh }: { opinion: ReviewOpinion; onRefresh: () => Promise<void> }) {
-  const [category, setCategory] = useState<RejectionCategory>("schedule");
+  const [category, setCategory] = useState<RejectionCategory>("distance_over_50km");
   const [publicSummary, setPublicSummary] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);

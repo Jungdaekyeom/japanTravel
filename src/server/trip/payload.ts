@@ -4,7 +4,6 @@ import type {
   AdminPayload,
   ContributorPayload,
   ObserverPayload,
-  ReviewOpinion,
   TripPayload,
 } from "../../trip/public";
 import { decodePolyline } from "../routes/polyline";
@@ -24,7 +23,10 @@ function toIso(value: Date | null) {
 }
 
 function isLaterRejection(candidate: OpinionRecord, current: OpinionRecord) {
-  return (candidate.reviewedAt ?? candidate.createdAt).getTime() > (current.reviewedAt ?? current.createdAt).getTime();
+  const reviewDifference = (candidate.reviewedAt ?? candidate.createdAt).getTime() - (current.reviewedAt ?? current.createdAt).getTime();
+  if (reviewDifference !== 0) return reviewDifference > 0;
+  const creationDifference = candidate.createdAt.getTime() - current.createdAt.getTime();
+  return creationDifference !== 0 ? creationDifference > 0 : candidate.id.localeCompare(current.id) > 0;
 }
 
 function publicRejections(opinions: readonly OpinionRecord[]) {

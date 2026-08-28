@@ -23,7 +23,7 @@ async function rejectedOpinion() {
     status: "rejected",
     reviewedBy: "daekyeom",
     reviewedAt: now,
-    rejectionCategory: "schedule",
+    rejectionCategory: "schedule_impossible",
     publicSummary: "요약",
     rejectionReason: "사유",
   });

@@ -113,8 +113,9 @@ describe("TripApp", () => {
     expect(screen.getByRole("button", { name: "역할 잠금 해제" })).toBeInTheDocument();
   });
 
-  it("closes the panel for 250ms, completes one reduced-motion playback, retains selection, and manages focus", async () => {
+  it("closes the panel for 250ms, completes one playback, retains selection, and manages focus", async () => {
     vi.useFakeTimers();
+    media({ reduced: false });
     mockFetch(observerPayload);
     render(<TripApp inviteToken="invite-123" />);
     await act(async () => {});
@@ -136,6 +137,20 @@ describe("TripApp", () => {
     const selectedDay = screen.getByRole("button", { name: "1일차 간사이국제공항에서 교토" });
     expect(selectedDay).toHaveAttribute("aria-current", "true");
     expect(selectedDay).toHaveFocus();
+  });
+
+  it("skips the panel close delay when reduced motion is requested", async () => {
+    vi.useFakeTimers();
+    media({ reduced: true });
+    mockFetch(observerPayload);
+    render(<TripApp inviteToken="invite-123" />);
+    await act(async () => {});
+
+    fireEvent.click(screen.getByRole("button", { name: /1일차/ }));
+    await act(async () => vi.advanceTimersByTime(0));
+
+    expect(screen.queryByRole("navigation", { name: "여행 일정" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "일정 패널 열기" })).toHaveFocus();
   });
 
   it("cancels the previous selected route as soon as another day is chosen", async () => {

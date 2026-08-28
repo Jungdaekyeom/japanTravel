@@ -1,6 +1,6 @@
 import { TRIP_DEFINITION } from "../../trip/definition";
 import type { RejectionCategory, Viewer } from "../../trip/types";
-import type { CreateOpinionInput, OpinionRecord, TripRepository } from "../repository/types";
+import type { CreateOpinionInput, TripRepository } from "../repository/types";
 
 type ContributorViewer = Extract<Viewer, { role: "contributor" }>;
 type AdminViewer = Extract<Viewer, { role: "admin" }>;

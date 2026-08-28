@@ -1,3 +1,5 @@
+import "server-only";
+
 import type { RouteSegmentKey } from "../repository/types";
 import { decodePolyline, encodePolyline, type PolylineCoordinate } from "./polyline";
 

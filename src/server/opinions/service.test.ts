@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { InMemoryTripRepository } from "../repository/memory";
 
 import {
-  OpinionServiceError,
   acceptRejection,
   approveOpinion,
   rejectOpinion,
@@ -31,7 +30,7 @@ describe("opinion service", () => {
     const repository = new InMemoryTripRepository();
     const opinion = await submitOpinion(repository, contributor, { targetDay: 1, body: "첫 제안" });
     await rejectOpinion(repository, admin, opinion.id, {
-      category: "schedule",
+      category: "schedule_impossible",
       publicSummary: "시간이 부족합니다",
       reason: "이동 시간을 확보해야 합니다.",
     }, () => now);
@@ -45,7 +44,7 @@ describe("opinion service", () => {
     const repository = new InMemoryTripRepository();
     const opinion = await submitOpinion(repository, contributor, { targetDay: null, body: "첫 제안" });
     await rejectOpinion(repository, admin, opinion.id, {
-      category: "budget",
+      category: "distance_over_50km",
       publicSummary: "예산을 넘습니다",
       reason: "현재 예산으로는 진행하기 어렵습니다.",
     }, () => now);
@@ -63,7 +62,7 @@ describe("opinion service", () => {
     const outcomes = await Promise.allSettled([
       approveOpinion(repository, admin, opinion.id, () => now),
       rejectOpinion(repository, admin, opinion.id, {
-        category: "feasibility",
+        category: "purpose_conflict",
         publicSummary: "실행이 어렵습니다",
         reason: "현지 운영 조건을 충족하기 어렵습니다.",
       }, () => now),

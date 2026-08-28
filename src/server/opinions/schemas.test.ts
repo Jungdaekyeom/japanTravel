@@ -16,17 +16,17 @@ describe("opinion request schemas", () => {
 
   it("accepts only defined rejection categories and trimmed public fields within their limits", () => {
     expect(rejectionSchema.parse({
-      category: "schedule",
+      category: "schedule_impossible",
       publicSummary: "  일정 조정 필요  ",
       reason: "  이동 시간이 부족합니다.  ",
     })).toEqual({
-      category: "schedule",
+      category: "schedule_impossible",
       publicSummary: "일정 조정 필요",
       reason: "이동 시간이 부족합니다.",
     });
     expect(rejectionSchema.safeParse({ category: "invalid", publicSummary: "요약", reason: "사유" }).success).toBe(false);
-    expect(rejectionSchema.safeParse({ category: "budget", publicSummary: " ", reason: "사유" }).success).toBe(false);
-    expect(rejectionSchema.safeParse({ category: "budget", publicSummary: "가".repeat(81), reason: "사유" }).success).toBe(false);
-    expect(rejectionSchema.safeParse({ category: "budget", publicSummary: "요약", reason: "가".repeat(301) }).success).toBe(false);
+    expect(rejectionSchema.safeParse({ category: "distance_over_50km", publicSummary: " ", reason: "사유" }).success).toBe(false);
+    expect(rejectionSchema.safeParse({ category: "distance_over_50km", publicSummary: "가".repeat(81), reason: "사유" }).success).toBe(false);
+    expect(rejectionSchema.safeParse({ category: "distance_over_50km", publicSummary: "요약", reason: "가".repeat(301) }).success).toBe(false);
   });
 });

@@ -13,7 +13,7 @@ function rejectedOpinion(overrides: Partial<OpinionRecord>): OpinionRecord {
     status: "rejected",
     reviewedBy: "daekyeom",
     reviewedAt: new Date("2026-08-28T00:00:00.000Z"),
-    rejectionCategory: "schedule",
+    rejectionCategory: "schedule_impossible",
     publicSummary: "일정 조정 필요",
     rejectionReason: "이동 시간이 부족합니다.",
     rejectionAcceptedAt: null,
@@ -107,6 +107,28 @@ describe("buildTripPayload", () => {
     expect(JSON.stringify(payload)).not.toContain("rejectionCategory");
   });
 
+  it("selects the same latest rejection regardless of repository order when review times tie", () => {
+    const reviewedAt = new Date("2026-08-28T00:00:00.000Z");
+    const older = rejectedOpinion({
+      id: "z-older",
+      publicSummary: "먼저 작성된 제안",
+      reviewedAt,
+      createdAt: new Date("2026-08-26T00:00:00.000Z"),
+    });
+    const newer = rejectedOpinion({
+      id: "a-newer",
+      publicSummary: "나중에 작성된 제안",
+      reviewedAt,
+      createdAt: new Date("2026-08-27T00:00:00.000Z"),
+    });
+
+    const forward = buildTripPayload({ role: "observer" }, [older, newer]);
+    const reversed = buildTripPayload({ role: "observer" }, [newer, older]);
+
+    expect(forward.publicRejections).toEqual([expect.objectContaining({ publicSummary: "나중에 작성된 제안" })]);
+    expect(reversed.publicRejections).toEqual(forward.publicRejections);
+  });
+
   it("gives a contributor only their own private bodies and statuses alongside the public view", () => {
     const own = rejectedOpinion({ id: "own", body: "내 비공개 원문" });
     const another = rejectedOpinion({ id: "another", participantId: "junsu", body: "다른 사람 비공개 원문" });
@@ -133,7 +155,7 @@ describe("buildTripPayload", () => {
       authorName: "이규열",
       body: "검토할 원문",
       status: "rejected",
-      rejectionCategory: "schedule",
+      rejectionCategory: "schedule_impossible",
     })]);
     expect(JSON.stringify(payload)).not.toContain("birthYear");
     expect(JSON.stringify(payload)).not.toContain("codeHash");
