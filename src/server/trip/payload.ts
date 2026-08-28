@@ -7,8 +7,9 @@ import type {
   ReviewOpinion,
   TripPayload,
 } from "../../trip/public";
+import { decodePolyline } from "../routes/polyline";
 import type { OpinionViewer } from "../opinions/service";
-import type { OpinionRecord } from "../repository/types";
+import type { OpinionRecord, RouteGeometryRecord } from "../repository/types";
 
 export type { AdminPayload, ContributorPayload, ObserverPayload, ReviewOpinion, TripPayload } from "../../trip/public";
 
@@ -70,14 +71,31 @@ function reviewOpinion(opinion: OpinionRecord) {
   };
 }
 
-export function buildTripPayload(viewer: Extract<OpinionViewer, { role: "observer" }>, opinions: readonly OpinionRecord[]): ObserverPayload;
-export function buildTripPayload(viewer: Extract<OpinionViewer, { role: "contributor" }>, opinions: readonly OpinionRecord[]): ContributorPayload;
-export function buildTripPayload(viewer: Extract<OpinionViewer, { role: "admin" }>, opinions: readonly OpinionRecord[]): AdminPayload;
-export function buildTripPayload(viewer: OpinionViewer, opinions: readonly OpinionRecord[]): TripPayload;
-export function buildTripPayload(viewer: OpinionViewer, opinions: readonly OpinionRecord[]): TripPayload {
+function publicRailRoutes(routes: readonly RouteGeometryRecord[], now: Date) {
+  return routes.flatMap((route) => {
+    if (route.status !== "finalized" || route.expiresAt <= now) return [];
+    try {
+      return [{
+        segmentKey: route.segmentKey,
+        status: "finalized" as const,
+        label: "철도 이동" as const,
+        geometry: decodePolyline(route.encodedPolyline),
+      }];
+    } catch {
+      return [];
+    }
+  });
+}
+
+export function buildTripPayload(viewer: Extract<OpinionViewer, { role: "observer" }>, opinions: readonly OpinionRecord[], routes?: readonly RouteGeometryRecord[], now?: Date): ObserverPayload;
+export function buildTripPayload(viewer: Extract<OpinionViewer, { role: "contributor" }>, opinions: readonly OpinionRecord[], routes?: readonly RouteGeometryRecord[], now?: Date): ContributorPayload;
+export function buildTripPayload(viewer: Extract<OpinionViewer, { role: "admin" }>, opinions: readonly OpinionRecord[], routes?: readonly RouteGeometryRecord[], now?: Date): AdminPayload;
+export function buildTripPayload(viewer: OpinionViewer, opinions: readonly OpinionRecord[], routes?: readonly RouteGeometryRecord[], now?: Date): TripPayload;
+export function buildTripPayload(viewer: OpinionViewer, opinions: readonly OpinionRecord[], routes: readonly RouteGeometryRecord[] = [], now = new Date()): TripPayload {
+  const railRoutes = publicRailRoutes(routes, now);
   if (viewer.role === "contributor") {
-    return { role: "contributor" as const, displayName: participantName(viewer.id), trip: PUBLIC_TRIP_DEFINITION, publicRejections: publicRejections(opinions), ownOpinions: opinions.filter((opinion) => opinion.participantId === viewer.id).map(ownOpinion) };
+    return { role: "contributor" as const, displayName: participantName(viewer.id), trip: PUBLIC_TRIP_DEFINITION, railRoutes, publicRejections: publicRejections(opinions), ownOpinions: opinions.filter((opinion) => opinion.participantId === viewer.id).map(ownOpinion) };
   }
-  if (viewer.role === "admin") return { role: "admin" as const, displayName: participantName(viewer.id), trip: PUBLIC_TRIP_DEFINITION, publicRejections: publicRejections(opinions), reviewQueue: opinions.map(reviewOpinion) };
-  return { role: "observer" as const, trip: PUBLIC_TRIP_DEFINITION, publicRejections: publicRejections(opinions) };
+  if (viewer.role === "admin") return { role: "admin" as const, displayName: participantName(viewer.id), trip: PUBLIC_TRIP_DEFINITION, railRoutes, publicRejections: publicRejections(opinions), reviewQueue: opinions.map(reviewOpinion) };
+  return { role: "observer" as const, trip: PUBLIC_TRIP_DEFINITION, railRoutes, publicRejections: publicRejections(opinions) };
 }

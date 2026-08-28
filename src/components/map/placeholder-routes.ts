@@ -1,4 +1,4 @@
-import { PUBLIC_TRIP_DEFINITION, type DayNumber, type PlaceKey } from "../../trip/public";
+import { PUBLIC_TRIP_DEFINITION, type DayNumber, type PlaceKey, type PublicRailRoute } from "../../trip/public";
 import type { PlaybackStage } from "./animation";
 
 export type Coordinate = { lat: number; lng: number };
@@ -7,7 +7,8 @@ export type MapLine = {
   kind: "flight" | "rail" | "connector";
   path: readonly Coordinate[];
   dashed: boolean;
-  label?: "경로 확정 전";
+  label?: "경로 확정 전" | "철도 이동";
+  googleDerived?: true;
 };
 export type MapPin = { key: string; label: string; position: Coordinate };
 export type DayLayers = { lines: readonly MapLine[]; pins: readonly MapPin[]; stages: readonly PlaybackStage[] };
@@ -39,6 +40,20 @@ export const FULL_ROUTE_LINES: readonly MapLine[] = [
   rail("odawara-tokyo", [place("odawara"), { lat: 35.4437, lng: 139.638 }, place("tokyo")]),
   rail("tokyo-narita", [place("tokyo"), { lat: 35.7126, lng: 139.773 }, place("nrt")]),
 ];
+
+export function buildRouteLines(routes: readonly PublicRailRoute[]) {
+  const finalized = new Map(routes.map((route) => [route.segmentKey, route]));
+  return FULL_ROUTE_LINES.map((line): MapLine => {
+    const route = line.kind === "rail" ? finalized.get(line.key as PublicRailRoute["segmentKey"]) : undefined;
+    return route ? {
+      ...line,
+      path: route.geometry.map(([lat, lng]) => ({ lat, lng })),
+      dashed: false,
+      label: "철도 이동",
+      googleDerived: true,
+    } : line;
+  });
+}
 
 const pins: Record<string, MapPin> = {
   busan: { key: "busan", label: "PUS · 부산 출발", position: place("busan") },
@@ -94,6 +109,7 @@ const days: Record<DayNumber, DayLayers> = {
   5: { lines: lines("tokyo-narita"), pins: dayPins("tokyo", "nrt"), stages: [{ durationMs: 1400, lineKeys: ["tokyo-narita"] }] },
 };
 
-export function buildDayLayers(day: DayNumber): DayLayers {
-  return days[day];
+export function buildDayLayers(day: DayNumber, routeLines: readonly MapLine[] = FULL_ROUTE_LINES): DayLayers {
+  const replacements = new Map(routeLines.map((line) => [line.key, line]));
+  return { ...days[day], lines: days[day].lines.map((line) => replacements.get(line.key) ?? line) };
 }

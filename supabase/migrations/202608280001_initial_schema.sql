@@ -53,7 +53,7 @@ create table public.opinions (
 create table public.route_geometry_cache (
   segment_key text primary key check (segment_key in ('kix-kyoto', 'kyoto-odawara', 'odawara-tokyo', 'tokyo-narita')),
   status text not null check (status in ('placeholder', 'finalized', 'expired')),
-  geometry jsonb not null default '[]'::jsonb check (jsonb_typeof(geometry) = 'array'),
+  encoded_polyline text not null check (length(encoded_polyline) > 0),
   departure_time text,
   narita_rail_choice text check (narita_rail_choice in ('skyliner', 'nex')),
   created_at timestamptz not null default now(),

@@ -27,6 +27,12 @@ export type RailSegment = {
   to: PlaceKey;
   naritaRailChoices?: readonly ["skyliner", "nex"];
 };
+export type PublicRailRoute = {
+  segmentKey: RailSegment["key"];
+  status: "finalized";
+  label: "철도 이동";
+  geometry: readonly (readonly [latitude: number, longitude: number])[];
+};
 export type PublicTripDefinition = {
   startDate: string;
   endDate: string;
@@ -83,7 +89,7 @@ export type ReviewOpinion = {
   updatedAt: string;
 };
 
-type PublicPayload = { trip: PublicTrip; publicRejections: PublicRejection[] };
+type PublicPayload = { trip: PublicTrip; railRoutes: PublicRailRoute[]; publicRejections: PublicRejection[] };
 export type ObserverPayload = PublicPayload & { role: "observer" };
 export type ContributorPayload = PublicPayload & { role: "contributor"; displayName: string; ownOpinions: OwnOpinion[] };
 export type AdminPayload = PublicPayload & { role: "admin"; displayName: string; reviewQueue: ReviewOpinion[] };

@@ -49,7 +49,7 @@ export type RouteSegmentKey = RailSegment["key"];
 export type RouteGeometryRecord = {
   segmentKey: RouteSegmentKey;
   status: RouteGeometryStatus;
-  geometry: readonly [number, number][];
+  encodedPolyline: string;
   departureTime: string | null;
   naritaRailChoice: "skyliner" | "nex" | null;
   createdAt: Date;

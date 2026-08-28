@@ -6,6 +6,7 @@ import type { DayNumber, TripPayload } from "../trip/public";
 import { AdminReviewControls } from "./AdminReviewControls";
 import { OpinionComposer } from "./OpinionComposer";
 import { RejectionCards } from "./RejectionCards";
+import { RouteFinalizer } from "./admin/RouteFinalizer";
 import styles from "./TripPanel.module.css";
 
 type TripPanelProps = {
@@ -115,6 +116,7 @@ export function TripPanel({ payload, selectedDay, state, focusOnOpen, onSelectDa
 
         <RejectionCards publicRejections={payload.publicRejections} ownOpinions={ownOpinions} onRefresh={onRefresh} />
         {payload.role === "contributor" && <OpinionComposer blocked={blocked} onRefresh={onRefresh} />}
+        {payload.role === "admin" && <RouteFinalizer railRoutes={payload.railRoutes} onRefresh={onRefresh} />}
         {payload.role === "admin" && <AdminReviewControls opinions={payload.reviewQueue} onRefresh={onRefresh} />}
       </div>
     </aside>

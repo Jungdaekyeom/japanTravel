@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { OpinionRecord } from "../repository/types";
+import type { OpinionRecord, RouteGeometryRecord } from "../repository/types";
 
 import { buildTripPayload } from "./payload";
 
@@ -24,6 +24,39 @@ function rejectedOpinion(overrides: Partial<OpinionRecord>): OpinionRecord {
 }
 
 describe("buildTripPayload", () => {
+  it("publishes only active finalized rail coordinates with the generic label", () => {
+    const now = new Date("2026-09-10T00:00:00.000Z");
+    const route = (overrides: Partial<RouteGeometryRecord>): RouteGeometryRecord => ({
+      segmentKey: "kix-kyoto",
+      status: "finalized",
+      encodedPolyline: "_p~iF~ps|U_ulLnnqC_mqNvxq`@",
+      departureTime: "2026-10-02T01:00:00.000Z",
+      naritaRailChoice: null,
+      createdAt: new Date("2026-09-07T00:00:00.000Z"),
+      expiresAt: new Date("2026-10-06T15:00:00.000Z"),
+      ...overrides,
+    });
+
+    const payload = buildTripPayload({ role: "observer" }, [], [
+      route({}),
+      route({ segmentKey: "kyoto-odawara", expiresAt: now }),
+      route({ segmentKey: "odawara-tokyo", status: "placeholder" }),
+      route({ segmentKey: "tokyo-narita", encodedPolyline: "_" }),
+    ], now);
+
+    expect(payload.railRoutes).toEqual([{
+      segmentKey: "kix-kyoto",
+      status: "finalized",
+      label: "철도 이동",
+      geometry: [[38.5, -120.2], [40.7, -120.95], [43.252, -126.453]],
+    }]);
+    const serialized = JSON.stringify(payload.railRoutes);
+    expect(serialized).not.toContain("encodedPolyline");
+    expect(serialized).not.toContain("departureTime");
+    expect(serialized).not.toContain("naritaRailChoice");
+    expect(serialized).not.toContain("Haruka");
+  });
+
   it("gives an observer fixed trip data and only each author's latest rejected opinion", () => {
     const payload = buildTripPayload({ role: "observer" }, [
       rejectedOpinion({ id: "old", body: "오래된 원문", publicSummary: "이전 요약", reviewedAt: new Date("2026-08-26T00:00:00.000Z") }),

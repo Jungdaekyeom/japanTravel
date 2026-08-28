@@ -5,6 +5,13 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 import { GoogleTripMap } from "./GoogleTripMap";
 
+const finalRailRoute = {
+  segmentKey: "kix-kyoto" as const,
+  status: "finalized" as const,
+  label: "철도 이동" as const,
+  geometry: [[34.44, 135.25], [35.01, 135.77]] as const,
+};
+
 class FakeBounds {
   points: unknown[] = [];
   extend(point: unknown) { this.points.push(point); return this; }
@@ -91,9 +98,10 @@ describe("GoogleTripMap", () => {
     const frames = installFrames();
     const onPlaybackComplete = vi.fn();
     delete (window as unknown as { google?: unknown }).google;
-    render(<GoogleTripMap selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
+    render(<GoogleTripMap railRoutes={[finalRailRoute]} selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
     const script = document.querySelector<HTMLScriptElement>("script[data-google-maps-script]");
     expect(script).not.toBeNull();
+    expect(screen.queryByText("Powered by Google, ©2026 Google")).not.toBeInTheDocument();
     script?.dispatchEvent(new Event("error"));
 
     expect(await screen.findByRole("region", { name: "정적 여행 일정" })).toBeInTheDocument();
@@ -147,6 +155,19 @@ describe("GoogleTripMap", () => {
     expect(screen.getByText("전체 경로")).toBeInTheDocument();
   });
 
+  it("draws final rail geometry on Google Maps and shows attribution only while it is visible", async () => {
+    installGoogleBoundary();
+    render(<GoogleTripMap railRoutes={[finalRailRoute]} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+
+    await waitFor(() => expect(FakeMap.instances).toHaveLength(1));
+    expect(FakePolyline.instances[2].path).toEqual([{ lat: 34.44, lng: 135.25 }, { lat: 35.01, lng: 135.77 }]);
+    expect(FakePolyline.instances[2].options.icons).toBeUndefined();
+    expect(FakePolyline.instances[3].options.icons).toBeDefined();
+    expect(screen.getByText("Powered by Google, ©2026 Google")).toBeInTheDocument();
+    expect(screen.getByText("철도 이동")).toBeInTheDocument();
+    expect(screen.getAllByText("경로 확정 전")).toHaveLength(3);
+  });
+
   it("completes one reduced-motion playback per request while retaining the full route", async () => {
     installGoogleBoundary();
     const onPlaybackComplete = vi.fn();
@@ -180,11 +201,13 @@ describe("GoogleTripMap", () => {
   it("falls back and completes the static selection instead of leaving a blank or pending map when the public key is missing", async () => {
     Reflect.deleteProperty(process.env, "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY");
     const onPlaybackComplete = vi.fn();
-    render(<GoogleTripMap selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
+    render(<GoogleTripMap railRoutes={[finalRailRoute]} selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
 
     expect(screen.getByRole("region", { name: "정적 여행 일정" })).toBeInTheDocument();
     expect(screen.getByText("3일차 일정")).toBeInTheDocument();
     expect(screen.getAllByText("경로 확정 전")).toHaveLength(4);
+    expect(screen.queryByText("Powered by Google, ©2026 Google")).not.toBeInTheDocument();
+    expect(screen.queryByText("철도 이동")).not.toBeInTheDocument();
     await waitFor(() => expect(onPlaybackComplete).toHaveBeenCalledOnce());
     fireEvent.click(screen.getByRole("button", { name: "지도 다시 불러오기" }));
     expect(screen.getByRole("alert")).toHaveTextContent("지도 설정을 다시 확인했습니다");

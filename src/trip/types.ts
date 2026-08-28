@@ -6,6 +6,7 @@ export type {
   OpinionStatus,
   Place,
   PlaceKey,
+  PublicRailRoute,
   RailSegment,
   RejectionCategory,
   ViewerRole,

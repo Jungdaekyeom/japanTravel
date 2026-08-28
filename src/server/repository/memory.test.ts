@@ -25,7 +25,7 @@ describe("InMemoryTripRepository", () => {
         {
           segmentKey: "kix-kyoto",
           status: "finalized",
-          geometry: [[34.4, 135.2]],
+          encodedPolyline: "??_ibE_ibE",
           departureTime: "09:00",
           naritaRailChoice: null,
           createdAt: new Date("2026-08-28T00:00:00.000Z"),
@@ -34,7 +34,7 @@ describe("InMemoryTripRepository", () => {
         {
           segmentKey: "kyoto-odawara",
           status: "finalized",
-          geometry: [[35, 135]],
+          encodedPolyline: "??_ibE_ibE",
           departureTime: "10:00",
           naritaRailChoice: null,
           createdAt: new Date("2026-08-28T00:00:00.000Z"),
@@ -54,7 +54,7 @@ describe("InMemoryTripRepository", () => {
       routeGeometry: [{
         segmentKey: "kix-kyoto",
         status: "finalized",
-        geometry: [[34.4, 135.2]],
+        encodedPolyline: "??_ibE_ibE",
         departureTime: "09:00",
         naritaRailChoice: null,
         createdAt: new Date("2026-08-28T00:00:00.000Z"),

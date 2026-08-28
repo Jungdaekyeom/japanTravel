@@ -1,22 +1,25 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { DayNumber } from "../../trip/public";
+import type { DayNumber, PublicRailRoute } from "../../trip/public";
 import { createRoutePlayback, pathAtProgress } from "./animation";
 import { loadGoogleMaps, type GoogleMapsLibraries } from "./map-script";
-import { buildDayLayers, FULL_ROUTE_LINES, FULL_ROUTE_PINS, type MapLine } from "./placeholder-routes";
+import { buildDayLayers, buildRouteLines, FULL_ROUTE_PINS, type MapLine } from "./placeholder-routes";
 import { StaticItinerary } from "./StaticItinerary";
 import styles from "./GoogleTripMap.module.css";
 
 type GoogleTripMapProps = {
+  railRoutes?: readonly PublicRailRoute[];
   selectedDay: DayNumber | null;
   playbackRequest: number;
   reducedMotion: boolean;
   onPlaybackComplete: (day: DayNumber) => void;
 };
 
-export function GoogleTripMap({ selectedDay, playbackRequest, reducedMotion, onPlaybackComplete }: GoogleTripMapProps) {
+const EMPTY_RAIL_ROUTES: readonly PublicRailRoute[] = [];
+
+export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, playbackRequest, reducedMotion, onPlaybackComplete }: GoogleTripMapProps) {
   const [retryKey, setRetryKey] = useState(0);
   const [retryAttempt, setRetryAttempt] = useState(0);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
@@ -32,6 +35,7 @@ export function GoogleTripMap({ selectedDay, playbackRequest, reducedMotion, onP
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAP_ID || (process.env.NODE_ENV === "production" ? undefined : "DEMO_MAP_ID");
   const configured = Boolean(apiKey && mapId);
+  const routeLines = useMemo(() => buildRouteLines(railRoutes), [railRoutes]);
 
   useEffect(() => {
     if (!configured || !apiKey || !mapId) return;
@@ -51,7 +55,7 @@ export function GoogleTripMap({ selectedDay, playbackRequest, reducedMotion, onP
         keyboardShortcuts: true,
       });
       map.current = nextMap;
-      baseLines.current = FULL_ROUTE_LINES.map((line) => new loaded.maps.Polyline({
+      baseLines.current = routeLines.map((line) => new loaded.maps.Polyline({
         ...polylineStyle(line, false),
         map: nextMap,
         path: [...line.path],
@@ -71,7 +75,7 @@ export function GoogleTripMap({ selectedDay, playbackRequest, reducedMotion, onP
         markerContent.current.set(pin.key, content);
         return new loaded.marker.AdvancedMarkerElement({ map: nextMap, position: pin.position, title: pin.label, content });
       });
-      fitFullRoute(nextMap);
+      fitFullRoute(nextMap, routeLines);
       setLoadState("ready");
     }).catch(() => {
       if (active) setLoadState("error");
@@ -90,7 +94,7 @@ export function GoogleTripMap({ selectedDay, playbackRequest, reducedMotion, onP
       map.current = null;
       libraries.current = null;
     };
-  }, [apiKey, configured, mapId, retryKey]);
+  }, [apiKey, configured, mapId, retryKey, routeLines]);
 
   const requestKey = selectedDay && playbackRequest > 0 ? `${selectedDay}:${playbackRequest}` : null;
 
@@ -105,7 +109,7 @@ export function GoogleTripMap({ selectedDay, playbackRequest, reducedMotion, onP
     if (loadState !== "ready" || !selectedDay || playbackRequest === 0 || !map.current || !libraries.current) return;
     const currentMap = map.current;
     const loaded = libraries.current;
-    const layers = buildDayLayers(selectedDay);
+    const layers = buildDayLayers(selectedDay, routeLines);
     const alreadyCompleted = completedRequest.current === requestKey;
     playback.current?.cancel();
     selectedLines.current.forEach((line) => line.setMap(null));
@@ -123,7 +127,7 @@ export function GoogleTripMap({ selectedDay, playbackRequest, reducedMotion, onP
     markerContent.current.forEach((content, key) => {
       content.dataset.selected = String(selectedPinKeys.has(key));
     });
-    fitDay(currentMap, selectedDay);
+    fitDay(currentMap, selectedDay, routeLines);
 
     const clearSelection = () => {
       selectedLines.current.forEach((line) => line.setMap(null));
@@ -158,7 +162,7 @@ export function GoogleTripMap({ selectedDay, playbackRequest, reducedMotion, onP
       routePlayback.cancel();
       clearSelection();
     };
-  }, [loadState, onPlaybackComplete, playbackRequest, reducedMotion, requestKey, selectedDay]);
+  }, [loadState, onPlaybackComplete, playbackRequest, reducedMotion, requestKey, routeLines, selectedDay]);
 
   if (!configured || loadState === "error") {
     const message = !configured
@@ -180,8 +184,9 @@ export function GoogleTripMap({ selectedDay, playbackRequest, reducedMotion, onP
       {loadState === "loading" && <p className={styles.mapLoading} role="status">지도 불러오는 중…</p>}
       <div className={styles.legend} aria-label="경로 상태">
         <strong>{selectedDay ? `${selectedDay}일차 선택 경로` : "전체 경로"}</strong>
-        {FULL_ROUTE_LINES.filter((line) => line.kind === "rail").map((line) => <span key={line.key}>경로 확정 전</span>)}
+        {routeLines.filter((line) => line.kind === "rail").map((line) => <span key={line.key}>{line.label}</span>)}
       </div>
+      {loadState === "ready" && routeLines.some((line) => line.googleDerived) && <p className={styles.googleAttribution}>Powered by Google, ©2026 Google</p>}
     </section>
   );
 }
@@ -209,11 +214,11 @@ function bounds(points: readonly { lat: number; lng: number }[]): google.maps.La
   }), { east: -180, north: -90, south: 90, west: 180 });
 }
 
-function fitFullRoute(map: google.maps.Map) {
-  map.fitBounds(bounds(FULL_ROUTE_LINES.flatMap((line) => line.path)), 36);
+function fitFullRoute(map: google.maps.Map, routeLines: readonly MapLine[]) {
+  map.fitBounds(bounds(routeLines.flatMap((line) => line.path)), 36);
 }
 
-function fitDay(map: google.maps.Map, day: DayNumber) {
-  const layers = buildDayLayers(day);
+function fitDay(map: google.maps.Map, day: DayNumber, routeLines: readonly MapLine[]) {
+  const layers = buildDayLayers(day, routeLines);
   map.fitBounds(bounds([...layers.lines.flatMap((line) => line.path), ...layers.pins.map((pin) => pin.position)]), 54);
 }

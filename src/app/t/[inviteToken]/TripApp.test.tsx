@@ -8,11 +8,12 @@ import { TripApp } from "./TripApp";
 
 const trip = PUBLIC_TRIP_DEFINITION;
 
-const observerPayload = { role: "observer" as const, trip, publicRejections: [] };
+const observerPayload = { role: "observer" as const, trip, railRoutes: [], publicRejections: [] };
 const contributorPayload = {
   role: "contributor" as const,
   displayName: "이규열",
   trip,
+  railRoutes: [],
   publicRejections: [
     { authorName: "이규열", publicSummary: "교토 체류 연장", reason: "다음 이동이 너무 늦어집니다.", accepted: false },
   ],
@@ -24,6 +25,7 @@ const adminPayload = {
   role: "admin" as const,
   displayName: "정대겸",
   trip,
+  railRoutes: [],
   publicRejections: [],
   reviewQueue: [
     {

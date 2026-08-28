@@ -63,7 +63,7 @@ function routeGeometry(row: Row): RouteGeometryRecord {
   return {
     segmentKey: row.segment_key as RouteGeometryRecord["segmentKey"],
     status: row.status as RouteGeometryRecord["status"],
-    geometry: row.geometry as RouteGeometryRecord["geometry"],
+    encodedPolyline: String(row.encoded_polyline),
     departureTime: (row.departure_time as string | null) ?? null,
     naritaRailChoice: row.narita_rail_choice as RouteGeometryRecord["naritaRailChoice"],
     createdAt: new Date(String(row.created_at)),
@@ -208,7 +208,7 @@ export class SupabaseTripRepository implements TripRepository {
     const { error } = await this.client.from("route_geometry_cache").upsert({
       segment_key: record.segmentKey,
       status: record.status,
-      geometry: record.geometry,
+      encoded_polyline: record.encodedPolyline,
       departure_time: record.departureTime,
       narita_rail_choice: record.naritaRailChoice,
       created_at: record.createdAt.toISOString(),
