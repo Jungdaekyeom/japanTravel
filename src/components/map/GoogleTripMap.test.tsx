@@ -113,8 +113,10 @@ describe("GoogleTripMap", () => {
     await waitFor(() => expect(FakeMap.instances).toHaveLength(1));
     expect(onPlaybackComplete).toHaveBeenCalledTimes(1);
     expect(frames.pending()).toBe(0);
-    const selected = FakePolyline.instances.find(({ options }) => options.zIndex === 3);
-    expect((selected?.path as Array<{ lat: number; lng: number }>).at(-1)).toEqual({ lat: 35.6762, lng: 139.6503 });
+    await waitFor(() => {
+      const selected = FakePolyline.instances.find(({ options }) => options.zIndex === 3);
+      expect((selected?.path as Array<{ lat: number; lng: number }> | undefined)?.at(-1)).toEqual({ lat: 35.6762, lng: 139.6503 });
+    });
   });
 
   it("cancels the previous live playback and overlay before starting only the newly selected day", async () => {
