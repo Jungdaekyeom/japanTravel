@@ -197,7 +197,7 @@ describe("GoogleTripMap", () => {
     await waitFor(() => expect(FakeMap.instances).toHaveLength(1));
     expect(FakeMap.instances[0].options).toMatchObject({ mapId: "test-map-id", disableDefaultUI: true });
     expect(importLibrary.mock.calls.map(([name]) => name)).toEqual([]);
-    expect(FakePolyline.instances).toHaveLength(7);
+    await waitFor(() => expect(FakePolyline.instances).toHaveLength(7));
     expect(FakeAdvancedMarkerElement.instances.length).toBeGreaterThanOrEqual(8);
     expect(screen.getAllByText("경로 확정 전")).toHaveLength(4);
     expect(screen.getByText("전체 경로")).toBeInTheDocument();
