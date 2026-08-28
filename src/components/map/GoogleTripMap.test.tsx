@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { GoogleTripMap } from "./GoogleTripMap";
@@ -142,6 +142,52 @@ describe("GoogleTripMap", () => {
     expect(onPlaybackComplete).toHaveBeenCalledTimes(1);
     expect(onPlaybackComplete).toHaveBeenCalledWith(2);
     expect(FakePolyline.instances.filter(({ options, map }) => options.zIndex === 3 && map !== null)).toHaveLength(2);
+  });
+
+  it("keeps the map and active playback when polling returns equivalent rail geometry", async () => {
+    const frames = installFrames();
+    installGoogleBoundary();
+    const onPlaybackComplete = vi.fn();
+    const { rerender } = render(<GoogleTripMap railRoutes={[finalRailRoute]} selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
+
+    await waitFor(() => expect(frames.pending()).toBe(1));
+    frames.step(0);
+    frames.step(700);
+    const selectedLine = FakePolyline.instances.find(({ options }) => options.zIndex === 3);
+    const baseLineCount = FakePolyline.instances.filter(({ options }) => options.zIndex === 1).length;
+
+    const equivalentRoute = {
+      ...finalRailRoute,
+      geometry: finalRailRoute.geometry.map(([latitude, longitude]) => [latitude, longitude] as const),
+    };
+    rerender(<GoogleTripMap railRoutes={[equivalentRoute]} selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
+    await act(async () => {});
+
+    expect(FakeMap.instances).toHaveLength(1);
+    expect(FakePolyline.instances.filter(({ options }) => options.zIndex === 1)).toHaveLength(baseLineCount);
+    expect(selectedLine?.map).toBe(FakeMap.instances[0]);
+    expect(FakePolyline.instances.filter(({ options }) => options.zIndex === 3)).toHaveLength(1);
+    expect(frames.pending()).toBe(1);
+
+    frames.step(1400);
+    expect(onPlaybackComplete).toHaveBeenCalledOnce();
+  });
+
+  it("updates changed base rail geometry without recreating the map", async () => {
+    installGoogleBoundary();
+    const { rerender } = render(<GoogleTripMap railRoutes={[finalRailRoute]} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+
+    await waitFor(() => expect(FakeMap.instances).toHaveLength(1));
+    const originalBaseLines = FakePolyline.instances.filter(({ options }) => options.zIndex === 1);
+    const changedGeometry = [{ lat: 34.44, lng: 135.25 }, { lat: 34.8, lng: 135.5 }, { lat: 35.1, lng: 135.8 }];
+    rerender(<GoogleTripMap railRoutes={[{ ...finalRailRoute, geometry: changedGeometry.map(({ lat, lng }) => [lat, lng] as const) }]} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(FakePolyline.instances.some(({ options, path, map }) => options.zIndex === 1 && map !== null && JSON.stringify(path) === JSON.stringify(changedGeometry))).toBe(true);
+    });
+    expect(FakeMap.instances).toHaveLength(1);
+    expect(originalBaseLines.every(({ map }) => map === null)).toBe(true);
+    expect(screen.getByText("Powered by Google, ©2026 Google")).toBeInTheDocument();
   });
 
   it("loads a muted map with a map ID, Advanced Markers, full route, and four textual rail placeholders", async () => {

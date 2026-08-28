@@ -35,7 +35,7 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAP_ID || (process.env.NODE_ENV === "production" ? undefined : "DEMO_MAP_ID");
   const configured = Boolean(apiKey && mapId);
-  const routeLines = useMemo(() => buildRouteLines(railRoutes), [railRoutes]);
+  const routeLines = useRouteLines(railRoutes);
 
   useEffect(() => {
     if (!configured || !apiKey || !mapId) return;
@@ -57,12 +57,6 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
         keyboardShortcuts: true,
       });
       map.current = nextMap;
-      baseLines.current = routeLines.map((line) => new loaded.maps.Polyline({
-        ...polylineStyle(line, false),
-        map: nextMap,
-        path: [...line.path],
-        zIndex: 1,
-      }));
       markers.current = FULL_ROUTE_PINS.map((pin) => {
         const content = document.createElement("div");
         content.className = styles.marker;
@@ -77,7 +71,6 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
         markerContent.current.set(pin.key, content);
         return new loaded.marker.AdvancedMarkerElement({ map: nextMap, position: pin.position, title: pin.label, content });
       });
-      fitFullRoute(nextMap, routeLines);
       setLoadState("ready");
     }).catch(() => {
       if (active) setLoadState("error");
@@ -96,7 +89,26 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
       map.current = null;
       libraries.current = null;
     };
-  }, [apiKey, configured, mapId, retryKey, routeLines]);
+  }, [apiKey, configured, mapId, retryKey]);
+
+  useEffect(() => {
+    if (loadState !== "ready" || !map.current || !libraries.current) return;
+    const currentMap = map.current;
+    const loaded = libraries.current;
+    const currentBaseLines = routeLines.map((line) => new loaded.maps.Polyline({
+      ...polylineStyle(line, false),
+      map: currentMap,
+      path: [...line.path],
+      zIndex: 1,
+    }));
+    baseLines.current = currentBaseLines;
+    fitFullRoute(currentMap, routeLines);
+
+    return () => {
+      currentBaseLines.forEach((line) => line.setMap(null));
+      if (baseLines.current === currentBaseLines) baseLines.current = [];
+    };
+  }, [loadState, routeLines]);
 
   const requestKey = selectedDay && playbackRequest > 0 ? `${selectedDay}:${playbackRequest}` : null;
 
@@ -191,6 +203,21 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
       {loadState === "ready" && routeLines.some((line) => line.googleDerived) && <p className={styles.googleAttribution}>Powered by Google, ©2026 Google</p>}
     </section>
   );
+}
+
+function useRouteLines(railRoutes: readonly PublicRailRoute[]) {
+  const key = useMemo(() => JSON.stringify(
+    [...railRoutes]
+      .sort((left, right) => left.segmentKey.localeCompare(right.segmentKey))
+      .map(({ segmentKey, geometry }) => [segmentKey, geometry]),
+  ), [railRoutes]);
+  const [snapshot, setSnapshot] = useState(() => ({ key, lines: buildRouteLines(railRoutes) }));
+
+  useEffect(() => {
+    setSnapshot((current) => current.key === key ? current : { key, lines: buildRouteLines(railRoutes) });
+  }, [key, railRoutes]);
+
+  return snapshot.lines;
 }
 
 function dashIcon(color: string) {
