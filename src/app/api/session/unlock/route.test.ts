@@ -64,4 +64,19 @@ describe("POST /api/session/unlock", () => {
       expiresAt: new Date("2026-10-13T14:59:59.000Z"),
     });
   });
+
+  it("releases its reservation and returns a generic 503 when credential lookup fails", async () => {
+    const repository = await repositoryWithCode();
+    let releases = 0;
+    repository.listParticipantCredentials = async () => { throw new Error("database unavailable"); };
+    const release = repository.releaseLoginAttempt.bind(repository);
+    repository.releaseLoginAttempt = async (reservationId) => { releases++; await release(reservationId); };
+    const handler = createUnlockHandler({ repository, pepper: "test-pepper", now: () => now });
+
+    const response = await handler(unlockRequest("123456"));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ error: "service_unavailable" });
+    expect(releases).toBe(1);
+  });
 });

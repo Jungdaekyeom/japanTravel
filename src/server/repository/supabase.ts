@@ -119,6 +119,11 @@ export class SupabaseTripRepository implements TripRepository {
     fail(error);
   }
 
+  async finalizeLoginAttempt(reservationId: string) {
+    const { error } = await this.client.rpc("finalize_login_attempt", { reservation_id: reservationId });
+    fail(error);
+  }
+
   async listOpinions() {
     const { data, error } = await this.client.from("opinions").select("*");
     fail(error);

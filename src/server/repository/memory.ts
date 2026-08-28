@@ -12,6 +12,7 @@ import type {
 } from "./types";
 
 const WINDOW_MS = 15 * 60 * 1000;
+const PENDING_TTL_MS = 60 * 1000;
 const MAX_IP_FAILURES = 5;
 const MAX_GLOBAL_FAILURES = 50;
 
@@ -108,16 +109,25 @@ export class InMemoryTripRepository implements TripRepository {
   async reserveLoginAttempt(ipHash: string, now: Date) {
     return this.locked("reservationQueue", () => {
       const since = new Date(now.getTime() - WINDOW_MS);
-      const active = this.loginAttempts.filter((attempt) => attempt.attemptedAt >= since);
+      const active = this.loginAttempts.filter((attempt) =>
+        attempt.status === "finalized"
+          ? attempt.attemptedAt > since
+          : attempt.attemptedAt > new Date(now.getTime() - PENDING_TTL_MS),
+      );
       if (active.length >= MAX_GLOBAL_FAILURES || active.filter((attempt) => attempt.ipHash === ipHash).length >= MAX_IP_FAILURES) return null;
       const id = randomUUID();
-      this.loginAttempts.push({ id, ipHash, attemptedAt: new Date(now) });
+      this.loginAttempts.push({ id, ipHash, attemptedAt: new Date(now), status: "pending" });
       return id;
     });
   }
 
   async releaseLoginAttempt(reservationId: string) {
     this.loginAttempts = this.loginAttempts.filter((attempt) => attempt.id !== reservationId);
+  }
+
+  async finalizeLoginAttempt(reservationId: string) {
+    const reservation = this.loginAttempts.find((attempt) => attempt.id === reservationId);
+    if (reservation) reservation.status = "finalized";
   }
 
   async listOpinions() {

@@ -24,7 +24,9 @@ create table public.sessions (
 create table public.login_attempts (
   id uuid primary key default gen_random_uuid(),
   ip_hash text not null check (ip_hash ~ '^[0-9a-f]{64}$'),
-  attempted_at timestamptz not null default now()
+  attempted_at timestamptz not null default now(),
+  status text not null default 'pending' check (status in ('pending', 'finalized')),
+  finalized_at timestamptz
 );
 
 create table public.opinions (
@@ -63,6 +65,7 @@ create table public.route_geometry_cache (
 create index sessions_expires_at_idx on public.sessions (expires_at);
 create index login_attempts_ip_hash_attempted_at_idx on public.login_attempts (ip_hash, attempted_at);
 create index login_attempts_attempted_at_idx on public.login_attempts (attempted_at);
+create index login_attempts_status_attempted_at_idx on public.login_attempts (status, attempted_at);
 create index opinions_participant_status_idx on public.opinions (participant_id, status, created_at desc);
 create index route_geometry_cache_expires_at_idx on public.route_geometry_cache (expires_at);
 
@@ -90,13 +93,24 @@ declare
 begin
   if request_ip_hash !~ '^[0-9a-f]{64}$' then raise exception 'invalid IP hash'; end if;
   perform pg_advisory_xact_lock(hashtextextended('japan-trip-login-attempts', 0));
-  if (select count(*) from public.login_attempts where attempted_at >= now() - interval '15 minutes') >= 50
-    or (select count(*) from public.login_attempts where ip_hash = request_ip_hash and attempted_at >= now() - interval '15 minutes') >= 5 then
+  delete from public.login_attempts where status = 'pending' and attempted_at <= now() - interval '60 seconds';
+  if (select count(*) from public.login_attempts where (status = 'finalized' and attempted_at > now() - interval '15 minutes') or (status = 'pending' and attempted_at > now() - interval '60 seconds')) >= 50
+    or (select count(*) from public.login_attempts where ip_hash = request_ip_hash and (status = 'finalized' and attempted_at > now() - interval '15 minutes' or status = 'pending' and attempted_at > now() - interval '60 seconds')) >= 5 then
     return null;
   end if;
-  insert into public.login_attempts (ip_hash) values (request_ip_hash) returning id into reservation_id;
+  insert into public.login_attempts (ip_hash, status) values (request_ip_hash, 'pending') returning id into reservation_id;
   return reservation_id;
 end;
+$$;
+
+create or replace function public.finalize_login_attempt(reservation_id uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.login_attempts set status = 'finalized', finalized_at = now()
+  where id = reservation_id and status = 'pending';
 $$;
 
 create or replace function public.submit_opinion_if_allowed(request_participant_id text, request_target_day smallint, request_body text)
@@ -135,8 +149,9 @@ $$;
 
 revoke all on function public.delete_expired_route_geometry() from public, anon, authenticated;
 revoke all on function public.reserve_login_attempt(text) from public, anon, authenticated;
+revoke all on function public.finalize_login_attempt(uuid) from public, anon, authenticated;
 revoke all on function public.submit_opinion_if_allowed(text, smallint, text) from public, anon, authenticated;
-grant execute on function public.reserve_login_attempt(text), public.submit_opinion_if_allowed(text, smallint, text) to service_role;
+grant execute on function public.reserve_login_attempt(text), public.finalize_login_attempt(uuid), public.submit_opinion_if_allowed(text, smallint, text) to service_role;
 
 select cron.schedule(
   'delete-expired-route-geometry',

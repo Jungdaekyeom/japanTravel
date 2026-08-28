@@ -21,39 +21,58 @@ function invalidCode() {
   return NextResponse.json({ error: "invalid_code" }, { status: 401 });
 }
 
+function unavailable() {
+  return NextResponse.json({ error: "service_unavailable" }, { status: 503 });
+}
+
 export function createUnlockHandler({ repository, pepper, now = () => new Date() }: UnlockDependencies) {
   return async function unlock(request: Request) {
     const attemptedAt = now();
     const ipHash = hashIpAddress(getClientIp(request), pepper);
-    const reservationId = await reserveLoginAttempt(repository, ipHash, attemptedAt);
+    let reservationId: string | null;
+    try {
+      reservationId = await reserveLoginAttempt(repository, ipHash, attemptedAt);
+    } catch {
+      return unavailable();
+    }
     if (!reservationId) {
       return NextResponse.json({ error: "rate_limited" }, { status: 429 });
     }
 
-    const body = await request.json().catch(() => null);
-    const parsed = unlockSchema.safeParse(body);
-    if (!parsed.success) {
-      return invalidCode();
-    }
+    try {
+      const body = await request.json().catch(() => null);
+      const parsed = unlockSchema.safeParse(body);
+      if (!parsed.success) {
+        await repository.finalizeLoginAttempt(reservationId);
+        return invalidCode();
+      }
 
-    const credentials = await repository.listParticipantCredentials();
-    const matches = await Promise.all(
-      credentials.map(async (participant) => ({
-        participant,
-        valid: await verifyParticipantCode(parsed.data.code, participant.codeSalt, participant.codeHash, pepper),
-      })),
-    );
-    const matched = matches.find(({ valid }) => valid)?.participant;
-    if (!matched) {
-      return invalidCode();
-    }
+      const credentials = await repository.listParticipantCredentials();
+      const matches = await Promise.all(
+        credentials.map(async (participant) => ({
+          participant,
+          valid: await verifyParticipantCode(parsed.data.code, participant.codeSalt, participant.codeHash, pepper),
+        })),
+      );
+      const matched = matches.find(({ valid }) => valid)?.participant;
+      if (!matched) {
+        await repository.finalizeLoginAttempt(reservationId);
+        return invalidCode();
+      }
 
-    await repository.releaseLoginAttempt(reservationId);
-    const issued = issueSession(matched.id, attemptedAt);
-    await repository.createSession(issued.session);
-    const response = NextResponse.json({ role: matched.role });
-    setSessionCookie(response, issued.token);
-    return response;
+      await repository.releaseLoginAttempt(reservationId);
+      reservationId = null;
+      const issued = issueSession(matched.id, attemptedAt);
+      await repository.createSession(issued.session);
+      const response = NextResponse.json({ role: matched.role });
+      setSessionCookie(response, issued.token);
+      return response;
+    } catch {
+      try {
+        if (reservationId) await repository.releaseLoginAttempt(reservationId);
+      } catch {}
+      return unavailable();
+    }
   };
 }
 

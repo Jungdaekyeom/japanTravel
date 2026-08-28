@@ -25,6 +25,7 @@ export type LoginAttemptRecord = {
   id: string;
   ipHash: string;
   attemptedAt: Date;
+  status: "pending" | "finalized";
 };
 
 export type OpinionRecord = {
@@ -76,6 +77,7 @@ export type TripRepository = {
   findSessionByTokenHash(tokenHash: string): Promise<SessionRecord | null>;
   deleteSessionByTokenHash(tokenHash: string): Promise<void>;
   reserveLoginAttempt(ipHash: string, now: Date): Promise<string | null>;
+  finalizeLoginAttempt(reservationId: string): Promise<void>;
   releaseLoginAttempt(reservationId: string): Promise<void>;
   listOpinions(): Promise<readonly OpinionRecord[]>;
   createOpinion(input: CreateOpinionInput): Promise<OpinionRecord>;
