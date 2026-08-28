@@ -2,14 +2,14 @@ import { TRIP_DEFINITION } from "../../trip/definition";
 import type { OpinionViewer } from "../opinions/service";
 import type { OpinionRecord } from "../repository/types";
 
-type Trip = Omit<typeof TRIP_DEFINITION, "participants">;
-type PublicRejection = { authorName: string; publicSummary: string; reason: string; accepted: boolean };
-type OwnOpinion = { id: string; targetDay: OpinionRecord["targetDay"]; body: string; status: OpinionRecord["status"]; accepted: boolean };
-type ReviewOpinion = ReturnType<typeof reviewOpinion>;
-type ObserverPayload = { role: "observer"; trip: Trip; publicRejections: PublicRejection[] };
-type ContributorPayload = { role: "contributor"; trip: Trip; publicRejections: PublicRejection[]; ownOpinions: OwnOpinion[] };
-type AdminPayload = { role: "admin"; trip: Trip; publicRejections: PublicRejection[]; reviewQueue: ReviewOpinion[] };
-type TripPayload = ObserverPayload | ContributorPayload | AdminPayload;
+export type Trip = Omit<typeof TRIP_DEFINITION, "participants">;
+export type PublicRejection = { authorName: string; publicSummary: string; reason: string; accepted: boolean };
+export type OwnOpinion = { id: string; targetDay: OpinionRecord["targetDay"]; body: string; status: OpinionRecord["status"]; accepted: boolean };
+export type ReviewOpinion = ReturnType<typeof reviewOpinion>;
+export type ObserverPayload = { role: "observer"; trip: Trip; publicRejections: PublicRejection[] };
+export type ContributorPayload = { role: "contributor"; trip: Trip; publicRejections: PublicRejection[]; ownOpinions: OwnOpinion[] };
+export type AdminPayload = { role: "admin"; trip: Trip; publicRejections: PublicRejection[]; reviewQueue: ReviewOpinion[] };
+export type TripPayload = ObserverPayload | ContributorPayload | AdminPayload;
 
 function toIso(value: Date | null) {
   return value?.toISOString() ?? null;

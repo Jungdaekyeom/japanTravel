@@ -1,0 +1,9 @@
+.app { position: relative; width: 100%; min-width: 320px; height: 100dvh; overflow: hidden; background: #111820; }
+.desktopGate, .loading { display: grid; min-height: 100dvh; place-items: center; padding: 24px; text-align: center; }
+.desktopGate p { color: var(--muted); font-size: 1rem; }
+.loading button { min-height: 44px; border: 1px solid var(--accent); border-radius: 10px; background: #1f6feb; color: white; padding: 8px 14px; }
+.panelOpener, .replay { position: absolute; z-index: 5; min-height: 44px; border: 1px solid rgba(139, 148, 158, 0.55); border-radius: 12px; background: rgba(22, 27, 34, 0.94); color: #f0f6fc; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28); backdrop-filter: blur(12px); }
+.panelOpener { top: max(12px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); padding: 9px 13px; }
+.replay { right: max(10px, env(safe-area-inset-right)); bottom: calc(max(14px, env(safe-area-inset-bottom)) + 38px); padding: 9px 13px; }
+.liveStatus { position: absolute; z-index: 3; right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); max-width: calc(100% - 20px); margin: 0; border-radius: 8px; background: rgba(13, 17, 23, 0.88); color: #d9e2ec; padding: 7px 10px; font-size: 0.7rem; }
+@media (prefers-reduced-motion: reduce) { .panelOpener, .replay { scroll-behavior: auto; } }

@@ -1,0 +1,23 @@
+.frame { position: absolute; inset: 0; overflow: hidden; background: #cad0cc; }
+.map { position: absolute; inset: 0; background: #cad0cc; filter: saturate(0.6) contrast(0.94) brightness(0.95); }
+.mapLoading { position: absolute; inset: 50% auto auto 50%; margin: 0; transform: translate(-50%, -50%); border-radius: 9px; background: rgba(13, 17, 23, 0.88); color: #f0f6fc; padding: 9px 12px; font-size: 0.76rem; }
+.legend { position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); display: grid; max-width: 122px; gap: 5px; border: 1px solid rgba(48, 54, 61, 0.42); border-radius: 11px; background: rgba(246, 248, 250, 0.9); color: #24292f; padding: 9px; box-shadow: 0 8px 24px rgba(31, 35, 40, 0.15); backdrop-filter: blur(10px); }
+.legend strong { font-size: 0.7rem; }
+.legend span { color: #57606a; font-size: 0.6rem; }
+.legend span::before { content: "┄"; margin-right: 4px; color: #57606a; }
+.marker { display: flex; align-items: center; gap: 5px; transform: translateY(0); transition: transform 160ms ease; }
+.marker[data-active="true"] { transform: translateY(-7px) scale(1.12); }
+.markerDot { width: 13px; height: 13px; border: 2px solid #fff; border-radius: 50%; background: #24292f; box-shadow: 0 2px 7px rgba(0, 0, 0, 0.32); }
+.marker[data-selected="true"] .markerDot { outline: 3px solid rgba(9, 105, 218, 0.28); outline-offset: 2px; }
+.marker[data-selected="true"] .markerLabel { text-decoration: underline; text-underline-offset: 2px; }
+.marker[data-active="true"] .markerDot { background: #0969da; box-shadow: 0 0 0 5px rgba(9, 105, 218, 0.22); }
+.markerLabel { border-radius: 6px; background: rgba(255, 255, 255, 0.9); color: #24292f; padding: 3px 5px; font-size: 10px; font-weight: 750; white-space: nowrap; }
+.fallback { position: absolute; inset: 0; display: grid; align-content: center; gap: 18px; overflow-y: auto; background: radial-gradient(circle at 85% 10%, #273542, #111820 56%); color: #f0f6fc; padding: max(22px, env(safe-area-inset-top)) 22px max(22px, env(safe-area-inset-bottom)); }
+.fallback h2, .fallback p { margin: 4px 0; }
+.kicker { color: #7ee787; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.12em; }
+.fallback ol { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.fallback li { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid #30363d; border-radius: 10px; background: rgba(13, 17, 23, 0.7); }
+.fallback li[data-selected="true"] { border-color: #58a6ff; }
+.fallback li span { color: #9da7b3; font-size: 0.78rem; }
+.fallback button { min-height: 44px; border: 1px solid #58a6ff; border-radius: 10px; background: #1f6feb; color: white; font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .marker { transition: none; } }
