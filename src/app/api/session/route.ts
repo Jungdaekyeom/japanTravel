@@ -8,8 +8,13 @@ type DeleteDependencies = { repository: TripRepository };
 export function createDeleteSessionHandler({ repository }: DeleteDependencies) {
   return async function removeSession(request: Request) {
     const token = getSessionToken(request);
-    if (token) await repository.deleteSessionByTokenHash(hashSessionToken(token));
-    const response = new NextResponse(null, { status: 204 });
+    let status = 204;
+    try {
+      if (token) await repository.deleteSessionByTokenHash(hashSessionToken(token));
+    } catch {
+      status = 503;
+    }
+    const response = new NextResponse(null, { status });
     clearSessionCookie(response);
     return response;
   };

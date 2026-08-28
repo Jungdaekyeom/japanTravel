@@ -13,6 +13,7 @@ export function getSessionToken(request: Request) {
 }
 
 export function getClientIp(request: Request) {
+  if (process.env.VERCEL === "1") return request.headers.get("x-vercel-forwarded-for")?.trim() || "unknown";
   return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 }
 

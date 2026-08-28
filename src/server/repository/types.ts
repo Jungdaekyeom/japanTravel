@@ -3,6 +3,7 @@ import type {
   OpinionStatus,
   Participant,
   RejectionCategory,
+  RailSegment,
   RouteGeometryStatus,
 } from "../../trip/types";
 
@@ -42,8 +43,10 @@ export type OpinionRecord = {
   updatedAt: Date;
 };
 
+export type RouteSegmentKey = RailSegment["key"];
+
 export type RouteGeometryRecord = {
-  segmentKey: string;
+  segmentKey: RouteSegmentKey;
   status: RouteGeometryStatus;
   geometry: readonly [number, number][];
   departureTime: string | null;
@@ -72,13 +75,15 @@ export type TripRepository = {
   createSession(session: SessionRecord): Promise<void>;
   findSessionByTokenHash(tokenHash: string): Promise<SessionRecord | null>;
   deleteSessionByTokenHash(tokenHash: string): Promise<void>;
-  countFailedLoginAttempts(since: Date, ipHash?: string): Promise<number>;
-  recordFailedLoginAttempt(attempt: LoginAttemptRecord): Promise<void>;
+  reserveLoginAttempt(ipHash: string, now: Date): Promise<string | null>;
+  releaseLoginAttempt(reservationId: string): Promise<void>;
   listOpinions(): Promise<readonly OpinionRecord[]>;
   createOpinion(input: CreateOpinionInput): Promise<OpinionRecord>;
+  createOpinionIfNoUnacceptedRejection(input: CreateOpinionInput): Promise<OpinionRecord | null>;
   updateOpinion(id: string, input: UpdateOpinionInput): Promise<OpinionRecord | null>;
-  listRouteGeometry(): Promise<readonly RouteGeometryRecord[]>;
-  findRouteGeometry(segmentKey: string): Promise<RouteGeometryRecord | null>;
+  transitionOpinion(id: string, fromStatus: OpinionStatus, input: UpdateOpinionInput): Promise<OpinionRecord | null>;
+  listRouteGeometry(now: Date): Promise<readonly RouteGeometryRecord[]>;
+  findRouteGeometry(segmentKey: RouteSegmentKey, now: Date): Promise<RouteGeometryRecord | null>;
   upsertRouteGeometry(record: RouteGeometryRecord): Promise<void>;
   deleteExpiredRouteGeometry(now: Date): Promise<void>;
 };

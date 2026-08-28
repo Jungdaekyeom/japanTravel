@@ -79,6 +79,45 @@ grant usage on schema public to service_role;
 grant all on table public.participants, public.sessions, public.login_attempts, public.opinions, public.route_geometry_cache to service_role;
 grant all on all sequences in schema public to service_role;
 
+create or replace function public.reserve_login_attempt(request_ip_hash text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  reservation_id uuid;
+begin
+  if request_ip_hash !~ '^[0-9a-f]{64}$' then raise exception 'invalid IP hash'; end if;
+  perform pg_advisory_xact_lock(hashtextextended('japan-trip-login-attempts', 0));
+  if (select count(*) from public.login_attempts where attempted_at >= now() - interval '15 minutes') >= 50
+    or (select count(*) from public.login_attempts where ip_hash = request_ip_hash and attempted_at >= now() - interval '15 minutes') >= 5 then
+    return null;
+  end if;
+  insert into public.login_attempts (ip_hash) values (request_ip_hash) returning id into reservation_id;
+  return reservation_id;
+end;
+$$;
+
+create or replace function public.submit_opinion_if_allowed(request_participant_id text, request_target_day smallint, request_body text)
+returns setof public.opinions
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform pg_advisory_xact_lock(hashtextextended('japan-trip-opinion:' || request_participant_id, 0));
+  if exists (
+    select 1 from public.opinions
+    where participant_id = request_participant_id and status = 'rejected' and rejection_accepted_at is null
+  ) then return; end if;
+  return query
+    insert into public.opinions (participant_id, target_day, body)
+    values (request_participant_id, request_target_day, request_body)
+    returning public.opinions.*;
+end;
+$$;
+
 create or replace function public.delete_expired_route_geometry()
 returns integer
 language plpgsql
@@ -95,6 +134,9 @@ end;
 $$;
 
 revoke all on function public.delete_expired_route_geometry() from public, anon, authenticated;
+revoke all on function public.reserve_login_attempt(text) from public, anon, authenticated;
+revoke all on function public.submit_opinion_if_allowed(text, smallint, text) from public, anon, authenticated;
+grant execute on function public.reserve_login_attempt(text), public.submit_opinion_if_allowed(text, smallint, text) to service_role;
 
 select cron.schedule(
   'delete-expired-route-geometry',

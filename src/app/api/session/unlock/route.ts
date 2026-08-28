@@ -1,10 +1,8 @@
-import { randomUUID } from "node:crypto";
-
 import { z } from "zod";
 import { NextResponse } from "next/server";
 
 import { hashIpAddress, verifyParticipantCode } from "../../../../server/auth/crypto";
-import { isLoginRateLimited } from "../../../../server/auth/rate-limit";
+import { reserveLoginAttempt } from "../../../../server/auth/rate-limit";
 import { issueSession } from "../../../../server/auth/session";
 import { getClientIp, setSessionCookie } from "../../../../server/http";
 import type { TripRepository } from "../../../../server/repository/types";
@@ -27,14 +25,14 @@ export function createUnlockHandler({ repository, pepper, now = () => new Date()
   return async function unlock(request: Request) {
     const attemptedAt = now();
     const ipHash = hashIpAddress(getClientIp(request), pepper);
-    if (await isLoginRateLimited(repository, ipHash, attemptedAt)) {
+    const reservationId = await reserveLoginAttempt(repository, ipHash, attemptedAt);
+    if (!reservationId) {
       return NextResponse.json({ error: "rate_limited" }, { status: 429 });
     }
 
     const body = await request.json().catch(() => null);
     const parsed = unlockSchema.safeParse(body);
     if (!parsed.success) {
-      await repository.recordFailedLoginAttempt({ id: randomUUID(), ipHash, attemptedAt });
       return invalidCode();
     }
 
@@ -47,10 +45,10 @@ export function createUnlockHandler({ repository, pepper, now = () => new Date()
     );
     const matched = matches.find(({ valid }) => valid)?.participant;
     if (!matched) {
-      await repository.recordFailedLoginAttempt({ id: randomUUID(), ipHash, attemptedAt });
       return invalidCode();
     }
 
+    await repository.releaseLoginAttempt(reservationId);
     const issued = issueSession(matched.id, attemptedAt);
     await repository.createSession(issued.session);
     const response = NextResponse.json({ role: matched.role });

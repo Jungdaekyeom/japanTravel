@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { hashParticipantCode } from "../src/server/auth/crypto.ts";
 import { getServerEnv } from "../src/server/env.ts";
 import { TRIP_DEFINITION } from "../src/trip/definition.ts";
+import { parseIssueCodeMode } from "./issue-participant-codes-options.ts";
 
 function makeCode(issued: Set<string>) {
   let code = "";
@@ -15,13 +16,14 @@ function makeCode(issued: Set<string>) {
 }
 
 async function main() {
+  const mode = parseIssueCodeMode(process.argv.slice(2));
   const env = getServerEnv();
   const client = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const { data: existing, error: lookupError } = await client.from("participants").select("id, code_hash");
   if (lookupError) throw new Error(lookupError.message);
-  if (existing?.some((participant) => participant.code_hash)) {
+  if (mode === "issue" && existing?.some((participant) => participant.code_hash)) {
     throw new Error("Participant codes were already issued; refusing to replace them.");
   }
 

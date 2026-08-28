@@ -1,33 +1,26 @@
 import { describe, expect, it } from "vitest";
 
-import { isLoginRateLimited } from "./rate-limit";
 import { InMemoryTripRepository } from "../repository/memory";
 
 describe("login rate limits", () => {
-  it("blocks the sixth failed attempt from one IP within fifteen minutes", async () => {
+  it("atomically allows at most five concurrent reservations from one IP", async () => {
     const now = new Date("2026-08-28T00:00:00.000Z");
-    const repository = new InMemoryTripRepository({
-      loginAttempts: Array.from({ length: 5 }, (_, index) => ({
-        id: String(index),
-        ipHash: "ip-a",
-        attemptedAt: new Date(now.getTime() - 60_000),
-      })),
-    });
+    const repository = new InMemoryTripRepository();
+    const reservations = await Promise.all(
+      Array.from({ length: 10 }, () => repository.reserveLoginAttempt("ip-a", now)),
+    );
 
-    await expect(isLoginRateLimited(repository, "ip-a", now)).resolves.toBe(true);
+    expect(reservations.filter(Boolean)).toHaveLength(5);
   });
 
-  it("blocks an IP when fifty failures occurred globally within fifteen minutes", async () => {
+  it("atomically allows at most fifty global reservations", async () => {
     const now = new Date("2026-08-28T00:00:00.000Z");
-    const repository = new InMemoryTripRepository({
-      loginAttempts: Array.from({ length: 50 }, (_, index) => ({
-        id: String(index),
-        ipHash: `ip-${index}`,
-        attemptedAt: new Date(now.getTime() - 60_000),
-      })),
-    });
+    const repository = new InMemoryTripRepository();
+    const reservations = await Promise.all(
+      Array.from({ length: 55 }, (_, index) => repository.reserveLoginAttempt(`ip-${index}`, now)),
+    );
 
-    await expect(isLoginRateLimited(repository, "new-ip", now)).resolves.toBe(true);
+    expect(reservations.filter(Boolean)).toHaveLength(50);
   });
 
   it("allows attempts after the fifteen-minute window expires", async () => {
@@ -36,6 +29,6 @@ describe("login rate limits", () => {
       loginAttempts: [{ id: "1", ipHash: "ip-a", attemptedAt: new Date("2026-08-28T00:00:00.000Z") }],
     });
 
-    await expect(isLoginRateLimited(repository, "ip-a", now)).resolves.toBe(false);
+    await expect(repository.reserveLoginAttempt("ip-a", now)).resolves.toBeTruthy();
   });
 });

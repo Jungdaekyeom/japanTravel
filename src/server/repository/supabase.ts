@@ -4,7 +4,6 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import type {
   CreateOpinionInput,
-  LoginAttemptRecord,
   OpinionRecord,
   ParticipantRecord,
   RouteGeometryRecord,
@@ -62,7 +61,7 @@ function opinion(row: Row): OpinionRecord {
 
 function routeGeometry(row: Row): RouteGeometryRecord {
   return {
-    segmentKey: String(row.segment_key),
+    segmentKey: row.segment_key as RouteGeometryRecord["segmentKey"],
     status: row.status as RouteGeometryRecord["status"],
     geometry: row.geometry as RouteGeometryRecord["geometry"],
     departureTime: (row.departure_time as string | null) ?? null,
@@ -109,20 +108,14 @@ export class SupabaseTripRepository implements TripRepository {
     fail(error);
   }
 
-  async countFailedLoginAttempts(since: Date, ipHash?: string) {
-    let query = this.client.from("login_attempts").select("id", { count: "exact", head: true }).gte("attempted_at", since.toISOString());
-    if (ipHash) query = query.eq("ip_hash", ipHash);
-    const { count, error } = await query;
+  async reserveLoginAttempt(ipHash: string, _now: Date) {
+    const { data, error } = await this.client.rpc("reserve_login_attempt", { request_ip_hash: ipHash });
     fail(error);
-    return count ?? 0;
+    return data as string | null;
   }
 
-  async recordFailedLoginAttempt(attempt: LoginAttemptRecord) {
-    const { error } = await this.client.from("login_attempts").insert({
-      id: attempt.id,
-      ip_hash: attempt.ipHash,
-      attempted_at: attempt.attemptedAt.toISOString(),
-    });
+  async releaseLoginAttempt(reservationId: string) {
+    const { error } = await this.client.from("login_attempts").delete().eq("id", reservationId);
     fail(error);
   }
 
@@ -142,6 +135,17 @@ export class SupabaseTripRepository implements TripRepository {
     return opinion(data as Row);
   }
 
+  async createOpinionIfNoUnacceptedRejection(input: CreateOpinionInput) {
+    const { data, error } = await this.client.rpc("submit_opinion_if_allowed", {
+      request_participant_id: input.participantId,
+      request_target_day: input.targetDay,
+      request_body: input.body,
+    });
+    fail(error);
+    const row = (data as Row[] | null)?.[0];
+    return row ? opinion(row) : null;
+  }
+
   async updateOpinion(id: string, input: UpdateOpinionInput) {
     const { data, error } = await this.client.from("opinions").update({
       status: input.status,
@@ -157,14 +161,29 @@ export class SupabaseTripRepository implements TripRepository {
     return data ? opinion(data as Row) : null;
   }
 
-  async listRouteGeometry() {
-    const { data, error } = await this.client.from("route_geometry_cache").select("*");
+  async transitionOpinion(id: string, fromStatus: OpinionRecord["status"], input: UpdateOpinionInput) {
+    const { data, error } = await this.client.from("opinions").update({
+      status: input.status,
+      reviewed_by: input.reviewedBy,
+      reviewed_at: input.reviewedAt?.toISOString(),
+      rejection_category: input.rejectionCategory,
+      public_summary: input.publicSummary,
+      rejection_reason: input.rejectionReason,
+      rejection_accepted_at: input.rejectionAcceptedAt?.toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq("id", id).eq("status", fromStatus).select().maybeSingle();
+    fail(error);
+    return data ? opinion(data as Row) : null;
+  }
+
+  async listRouteGeometry(now: Date) {
+    const { data, error } = await this.client.from("route_geometry_cache").select("*").gt("expires_at", now.toISOString());
     fail(error);
     return (data ?? []).map((row) => routeGeometry(row as Row));
   }
 
-  async findRouteGeometry(segmentKey: string) {
-    const { data, error } = await this.client.from("route_geometry_cache").select("*").eq("segment_key", segmentKey).maybeSingle();
+  async findRouteGeometry(segmentKey: RouteGeometryRecord["segmentKey"], now: Date) {
+    const { data, error } = await this.client.from("route_geometry_cache").select("*").eq("segment_key", segmentKey).gt("expires_at", now.toISOString()).maybeSingle();
     fail(error);
     return data ? routeGeometry(data as Row) : null;
   }
