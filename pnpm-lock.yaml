@@ -21,9 +21,6 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
-      '@playwright/test':
-        specifier: 1.62.1
-        version: 1.62.1
       '@types/node':
         specifier: 24.11.1
         version: 24.11.1
@@ -1032,6 +1029,7 @@ snapshots:
   '@playwright/test@1.62.1':
     dependencies:
       playwright: 1.62.1
+    optional: true
 
   '@rolldown/binding-android-arm-eabi@1.2.6':
     optional: true
@@ -1331,13 +1329,15 @@ snapshots:
 
   picomatch@4.0.7: {}
 
-  playwright-core@1.62.1: {}
+  playwright-core@1.62.1:
+    optional: true
 
   playwright@1.62.1:
     dependencies:
       playwright-core: 1.62.1
     optionalDependencies:
       fsevents: 2.3.2
+    optional: true
 
   postcss@8.5.23:
     dependencies:
