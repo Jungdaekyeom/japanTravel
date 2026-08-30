@@ -21,15 +21,17 @@
 .eyebrow { margin: 0; color: #7ee787; font-size: 0.66rem; font-weight: 750; letter-spacing: 0.12em; }
 .iconButton { width: 44px; min-height: 44px; border: 1px solid var(--panel-border); border-radius: 11px; background: #21262d; color: #f0f6fc; font-size: 1.5rem; }
 .sessionRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 14px; padding: 9px 10px; border: 1px solid var(--panel-border); border-radius: 10px; background: #0d1117; }
+.sessionIdentity { display: grid; gap: 2px; min-width: 0; }
 .roleBadge { color: #d2a8ff; font-size: 0.72rem; font-weight: 700; }
 .sessionState { color: var(--panel-muted); font-size: 0.68rem; }
+.sessionControl { min-height: 32px; flex: 0 0 auto; border: 1px solid #3b4654; border-radius: 8px; background: #21262d; color: #f0f6fc; padding: 5px 8px; font-size: 0.66rem; font-weight: 650; }
 .days { display: grid; gap: 5px; margin: 12px 0 14px; padding: 0; list-style: none; }
 .dayButton { display: grid; width: 100%; min-height: 52px; grid-template-columns: 28px 1fr; align-items: center; gap: 9px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: #f0f6fc; padding: 7px 9px; text-align: left; }
 .dayButton:hover, .dayButton:focus-visible { background: #21262d; }
 .dayButton[aria-current="true"] { border-color: #58a6ff; background: rgba(56, 139, 253, 0.16); }
 .dayButton strong, .dayButton small { display: block; }
 .dayButton strong { font-size: 0.78rem; }
-.dayButton small { margin-top: 3px; overflow: hidden; color: var(--panel-muted); font-size: 0.68rem; text-overflow: ellipsis; white-space: nowrap; }
+.dayButton small { margin-top: 3px; color: var(--panel-muted); font-size: 0.68rem; line-height: 1.35; }
 .dayIndex { display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid #3b4654; border-radius: 8px; color: #7ee787; font-size: 0.72rem; font-weight: 750; }
 .scrollContent { overflow-y: auto; padding: 0 14px 20px; }
 @media (prefers-reduced-motion: reduce) { .panel { transition: none; } }

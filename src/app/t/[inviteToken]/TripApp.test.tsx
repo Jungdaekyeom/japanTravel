@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PUBLIC_TRIP_DEFINITION } from "../../../trip/public";
@@ -81,6 +81,7 @@ function deferred<T>() {
 
 beforeEach(() => {
   media();
+  window.history.replaceState(null, "", "/");
   Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
 });
 
@@ -102,15 +103,89 @@ describe("TripApp", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("starts with all five days in an open panel and unlock controls for an observer", async () => {
+  it("starts with all five days and no manual unlock controls for an observer", async () => {
     mockFetch(observerPayload);
 
     render(<TripApp inviteToken="invite-123" />);
 
     expect(await screen.findByRole("navigation", { name: "여행 일정" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /일차/ })).toHaveLength(5);
-    expect(screen.getByRole("textbox", { name: "개인 코드" })).toHaveAttribute("inputmode", "numeric");
-    expect(screen.getByRole("button", { name: "역할 잠금 해제" })).toBeInTheDocument();
+    expect(within(screen.getByRole("navigation", { name: "여행 일정" })).getByText("부산·인천에서 KIX 도착 후 JR 하루카로 교토역 이동, 교토 명소 방문")).toBeVisible();
+    expect(within(screen.getByRole("navigation", { name: "여행 일정" })).getByRole("button", { name: "1일차 간사이국제공항에서 교토역. 부산·인천에서 KIX 도착 후 JR 하루카로 교토역 이동, 교토 명소 방문" })).toBeInTheDocument();
+    expect(screen.getByText("공개 일정만 보기")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "역할 잠금 해제" })).not.toBeInTheDocument();
+  });
+
+  it("posts a fragment join token in JSON, scrubs the URL, and refreshes the claimed role", async () => {
+    const token = "a".repeat(43);
+    window.history.replaceState(null, "", `/t/invite-123#join=${token}`);
+    let claimed = false;
+    const fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/session/claim") {
+        expect(init?.method).toBe("POST");
+        expect(JSON.parse(String(init?.body))).toEqual({ token });
+        claimed = true;
+        return json({ role: "contributor" });
+      }
+      if (url.includes("/api/trip/")) return json(claimed ? contributorPayload : observerPayload);
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<TripApp inviteToken="invite-123" />);
+
+    expect(await screen.findByRole("heading", { name: "의견 남기기" })).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/t/invite-123");
+    expect(window.location.hash).toBe("");
+    expect(fetch.mock.calls.some(([input]) => String(input).includes(token))).toBe(false);
+  });
+
+  it("scrubs a failed personal-link fragment and tells the user to reopen it", async () => {
+    const token = "r".repeat(43);
+    window.history.replaceState(null, "", `/t/invite-123#join=${token}`);
+    let claimCalls = 0;
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url === "/api/session/claim") {
+        claimCalls += 1;
+        return json({ error: "service_unavailable" }, 503);
+      }
+      if (url.includes("/api/trip/")) return json(observerPayload);
+      throw new Error(`unexpected request: ${url}`);
+    }));
+
+    render(<TripApp inviteToken="invite-123" />);
+
+    await screen.findByText("공개 일정만 보기");
+    await waitFor(() => expect(claimCalls).toBe(1));
+    expect(window.location.hash).toBe("");
+    expect(screen.getByText("개인 링크를 확인하지 못했습니다. 카카오톡 링크를 다시 열어주세요.")).toHaveAttribute("role", "alert");
+  });
+
+  it("claims a personal link opened as a same-document fragment navigation", async () => {
+    const token = "h".repeat(43);
+    let claimed = false;
+    const fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/session/claim") {
+        expect(JSON.parse(String(init?.body))).toEqual({ token });
+        claimed = true;
+        return json({ role: "contributor" });
+      }
+      if (url.includes("/api/trip/")) return json(claimed ? contributorPayload : observerPayload);
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<TripApp inviteToken="invite-123" />);
+    await screen.findByText("공개 일정만 보기");
+
+    window.location.hash = `join=${token}`;
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+
+    expect(await screen.findByRole("heading", { name: "의견 남기기" })).toBeInTheDocument();
+    expect(window.location.hash).toBe("");
   });
 
   it("closes the panel for 250ms, completes one playback, retains selection, and manages focus", async () => {
@@ -134,7 +209,7 @@ describe("TripApp", () => {
     expect(screen.getByRole("button", { name: "1일차 경로 다시 재생" })).toBeInTheDocument();
 
     fireEvent.click(panelOpener);
-    const selectedDay = screen.getByRole("button", { name: "1일차 간사이국제공항에서 교토" });
+    const selectedDay = within(screen.getByRole("navigation", { name: "여행 일정" })).getByRole("button", { name: /^1일차 / });
     expect(selectedDay).toHaveAttribute("aria-current", "true");
     expect(selectedDay).toHaveFocus();
   });
@@ -188,10 +263,11 @@ describe("TripApp", () => {
     expect(fetch).toHaveBeenCalledTimes(3);
   });
 
-  it("does not let an older observer poll overwrite the newer unlocked contributor refresh", async () => {
+  it("does not let an older observer poll overwrite a newer personal-link session", async () => {
+    const token = "s".repeat(43);
     const oldPoll = deferred<Response>();
     let tripRequests = 0;
-    vi.stubGlobal("fetch", vi.fn((input: string | URL | Request, init?: RequestInit) => {
+    vi.stubGlobal("fetch", vi.fn((input: string | URL | Request) => {
       const url = String(input);
       if (url.includes("/api/trip/")) {
         tripRequests += 1;
@@ -199,41 +275,41 @@ describe("TripApp", () => {
         if (tripRequests === 2) return oldPoll.promise;
         return Promise.resolve(json(contributorPayload));
       }
-      if (url === "/api/session/unlock" && init?.method === "POST") return Promise.resolve(json({ role: "contributor" }));
+      if (url === "/api/session/claim") return Promise.resolve(json({ role: "contributor" }));
       throw new Error(`unexpected request: ${url}`);
     }));
     render(<TripApp inviteToken="invite-123" />);
-    await screen.findByRole("textbox", { name: "개인 코드" });
+    await screen.findByText("공개 일정만 보기");
 
     fireEvent.focus(window);
-    fireEvent.change(screen.getByRole("textbox", { name: "개인 코드" }), { target: { value: "123456" } });
-    fireEvent.click(screen.getByRole("button", { name: "역할 잠금 해제" }));
-    await waitFor(() => expect(screen.getByRole("heading", { name: "의견 남기기" })).toBeInTheDocument());
+    window.location.hash = `join=${token}`;
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    await screen.findByRole("heading", { name: "의견 남기기" });
 
     await act(async () => oldPoll.resolve(json(observerPayload)));
     expect(screen.getByRole("heading", { name: "의견 남기기" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "역할 잠금 해제" })).not.toBeInTheDocument();
   });
 
-  it("keeps stale payload visible and surfaces a mutation refresh failure", async () => {
+  it("keeps the last trip visible when a successful claim refresh temporarily fails", async () => {
+    const token = "t".repeat(43);
     let tripRequests = 0;
-    vi.stubGlobal("fetch", vi.fn((input: string | URL | Request, init?: RequestInit) => {
+    vi.stubGlobal("fetch", vi.fn((input: string | URL | Request) => {
       const url = String(input);
+      if (url === "/api/session/claim") return Promise.resolve(json({ role: "contributor" }));
       if (url.includes("/api/trip/")) {
         tripRequests += 1;
         return Promise.resolve(tripRequests === 1 ? json(observerPayload) : json({ error: "unavailable" }, 503));
       }
-      if (url === "/api/session/unlock" && init?.method === "POST") return Promise.resolve(json({ role: "contributor" }));
       throw new Error(`unexpected request: ${url}`);
     }));
     render(<TripApp inviteToken="invite-123" />);
+    await screen.findByText("공개 일정만 보기");
 
-    fireEvent.change(await screen.findByRole("textbox", { name: "개인 코드" }), { target: { value: "123456" } });
-    fireEvent.click(screen.getByRole("button", { name: "역할 잠금 해제" }));
+    window.location.hash = `join=${token}`;
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
 
     expect(await screen.findByText("최신 데이터를 불러오지 못했습니다. 기존 일정을 표시합니다.")).toHaveAttribute("role", "alert");
     expect(screen.getByRole("navigation", { name: "여행 일정" })).toBeInTheDocument();
-    expect(screen.getByText("일정을 불러오지 못했습니다.")).toHaveAttribute("role", "status");
   });
 
   it("aborts the active trip request on unmount", async () => {

@@ -3,7 +3,7 @@ import "server-only";
 import type { RouteSegmentKey } from "../repository/types";
 import { decodePolyline, encodePolyline, type PolylineCoordinate } from "./polyline";
 
-export const GOOGLE_ROUTES_FIELD_MASK = "fallbackInfo,routes.legs.steps.travelMode,routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.transitDetails.transitLine.vehicle.type";
+export const GOOGLE_ROUTES_FIELD_MASK = "fallbackInfo,routes.legs.steps.travelMode,routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.transitDetails.transitLine.name,routes.legs.steps.transitDetails.transitLine.nameShort,routes.legs.steps.transitDetails.transitLine.vehicle.type";
 export const GOOGLE_ROUTES_TIMEOUT_MS = 10_000;
 
 export type GoogleRoutePlaceIds = {
@@ -65,13 +65,37 @@ function railSteps(route: unknown) {
   });
 }
 
-function selectedPolyline(payload: unknown) {
+function normalizedLineName(value: string) {
+  return value.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
+}
+
+function includesAny(value: string, names: readonly string[]) {
+  return names.some((name) => value.includes(normalizedLineName(name)));
+}
+
+function usesPlannedRailService(segmentKey: RouteSegmentKey, steps: unknown[]) {
+  const names = steps.map((step) => [
+    nested(step, "transitDetails", "transitLine", "name"),
+    nested(step, "transitDetails", "transitLine", "nameShort"),
+  ].filter((value): value is string => typeof value === "string").join(" ")).map(normalizedLineName);
+  const hasTokaido = (name: string) => includesAny(name, ["tokaido", "도카이도", "東海道"]);
+  const hasShinkansen = (name: string) => includesAny(name, ["shinkansen", "신칸센", "新幹線"]);
+
+  switch (segmentKey) {
+    case "kix-kyoto": return names.some((name) => includesAny(name, ["haruka", "하루카", "はるか", "ハルカ"]));
+    case "kyoto-odawara": return names.some((name) => hasTokaido(name) && hasShinkansen(name));
+    case "odawara-tokyo": return !names.some(hasShinkansen) && names.some((name) => hasTokaido(name) && includesAny(name, ["tokaido main", "tokaido line", "도카이도 본선", "도카이도선", "東海道本線", "東海道線"]));
+    case "tokyo-narita": return names.some((name) => includesAny(name, ["skyliner", "스카이라이너", "スカイライナー"]));
+  }
+}
+
+function selectedPolyline(payload: unknown, segmentKey: RouteSegmentKey) {
   const root = record(payload);
   if (!root || "fallbackInfo" in root || !Array.isArray(root.routes)) throw new Error("Google route unavailable");
 
   for (const route of root.routes) {
     const steps = railSteps(route);
-    if (steps.length === 0) continue;
+    if (steps.length === 0 || !usesPlannedRailService(segmentKey, steps)) continue;
     const combined: PolylineCoordinate[] = [];
     for (const step of steps) {
       const encoded = nested(step, "polyline", "encodedPolyline");
@@ -131,7 +155,7 @@ export function createGoogleRoutesClient({
           signal: AbortSignal.timeout(GOOGLE_ROUTES_TIMEOUT_MS),
         });
         if (!response.ok) throw new Error("Google route unavailable");
-        return selectedPolyline(await response.json());
+        return selectedPolyline(await response.json(), input.segmentKey);
       } catch {
         throw new Error("Google route unavailable");
       }

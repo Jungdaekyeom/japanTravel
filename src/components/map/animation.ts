@@ -1,6 +1,6 @@
-export type PlaybackStage = { durationMs: number; lineKeys?: readonly string[]; pinKey?: string };
+export type PlaybackStage = { durationMs: number; lineKeys?: readonly string[]; pinKey?: string; focusPinKeys?: readonly string[] };
 
-export type PlaybackState = { progress: Record<string, number>; currentPinKey: string | null; completed: boolean };
+export type PlaybackState = { progress: Record<string, number>; currentPinKey: string | null; completed: boolean; focusPinKeys?: readonly string[] };
 
 type Point = { lat: number; lng: number };
 
@@ -33,7 +33,9 @@ export function createRoutePlayback(options: PlaybackOptions) {
   let frameId: number | undefined;
   let started = false;
   let cancelled = false;
-  let startTime: number | undefined;
+  let stageIndex = 0;
+  let stageStartedAt: number | undefined;
+  const progress: Record<string, number> = {};
 
   function completedProgress() {
     return Object.fromEntries(
@@ -46,29 +48,35 @@ export function createRoutePlayback(options: PlaybackOptions) {
     options.onComplete?.();
   }
 
+  function update(stage: PlaybackStage, stageProgress: number) {
+    for (const key of stage.lineKeys ?? []) progress[key] = stageProgress;
+    options.onUpdate({
+      progress: { ...progress },
+      currentPinKey: stage.pinKey ?? null,
+      completed: false,
+      ...(stage.focusPinKeys ? { focusPinKeys: stage.focusPinKeys } : {}),
+    });
+  }
+
   function tick(time: number) {
     if (cancelled) return;
-    startTime ??= time;
-    const elapsed = time - startTime;
-    let stageStart = 0;
-    const progress: Record<string, number> = {};
+    const stage = options.stages[stageIndex];
+    if (!stage) return finish();
+    stageStartedAt ??= time;
+    const stageProgress = Math.max(0, Math.min(1, (time - stageStartedAt) / stage.durationMs));
+    update(stage, stageProgress);
 
-    for (const stage of options.stages) {
-      const stageEnd = stageStart + stage.durationMs;
-      if (elapsed >= stageEnd) {
-        for (const key of stage.lineKeys ?? []) progress[key] = 1;
-        stageStart = stageEnd;
-        continue;
-      }
-
-      const stageProgress = Math.max(0, Math.min(1, (elapsed - stageStart) / stage.durationMs));
-      for (const key of stage.lineKeys ?? []) progress[key] = stageProgress;
-      options.onUpdate({ progress, currentPinKey: stage.pinKey ?? null, completed: false });
+    if (stageProgress < 1) {
       frameId = requestFrame(tick);
       return;
     }
 
-    finish();
+    stageIndex += 1;
+    const nextStage = options.stages[stageIndex];
+    if (!nextStage) return finish();
+    stageStartedAt = time;
+    update(nextStage, 0);
+    frameId = requestFrame(tick);
   }
 
   return {

@@ -16,11 +16,16 @@ const placeIds: GoogleRoutePlaceIds = {
   NARITA_AIRPORT: "place-narita",
 };
 
-function step(type: string, encodedPolyline = "_p~iF~ps|U_ulLnnqC_mqNvxq`@") {
+function step(
+  type: string,
+  encodedPolyline = "_p~iF~ps|U_ulLnnqC_mqNvxq`@",
+  name = "Haruka",
+  nameShort?: string,
+) {
   return {
     travelMode: "TRANSIT",
     polyline: { encodedPolyline },
-    transitDetails: { transitLine: { vehicle: { type } } },
+    transitDetails: { transitLine: { name, ...(nameShort ? { nameShort } : {}), vehicle: { type } } },
   };
 }
 
@@ -64,7 +69,7 @@ describe("Google Routes rail client", () => {
       }),
       signal: expect.any(AbortSignal),
     });
-    expect(GOOGLE_ROUTES_FIELD_MASK).toBe("fallbackInfo,routes.legs.steps.travelMode,routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.transitDetails.transitLine.vehicle.type");
+    expect(GOOGLE_ROUTES_FIELD_MASK).toBe("fallbackInfo,routes.legs.steps.travelMode,routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.transitDetails.transitLine.name,routes.legs.steps.transitDetails.transitLine.nameShort,routes.legs.steps.transitDetails.transitLine.vehicle.type");
     expect(GOOGLE_ROUTES_FIELD_MASK).not.toContain("*");
   });
 
@@ -93,7 +98,7 @@ describe("Google Routes rail client", () => {
     ["skyliner", "place-keisei-ueno"],
     ["nex", "place-tokyo"],
   ] as const)("uses the required %s origin for the Narita segment", async (naritaRailChoice, origin) => {
-    const fetch = vi.fn(async (_input: string, _init: RequestInit) => response([{ legs: [{ steps: [step("COMMUTER_TRAIN")] }] }]));
+    const fetch = vi.fn(async (_input: string, _init: RequestInit) => response([{ legs: [{ steps: [step("COMMUTER_TRAIN", undefined, "Keisei Skyliner")] }] }]));
     const client = createGoogleRoutesClient({ apiKey: "key", placeIds, fetch });
 
     await client.computeRailRoute({
@@ -107,29 +112,48 @@ describe("Google Routes rail client", () => {
     expect(body.destination).toEqual({ placeId: "place-narita" });
   });
 
-  it("selects the first alternative containing rail and allows other rail vehicle types", async () => {
-    const bus = step("BUS", "??");
-    const commuter = step("COMMUTER_TRAIN", "??_ibE_ibE");
-    const highSpeed = step("HIGH_SPEED_TRAIN", "_p~iF~ps|U");
+  it.each([
+    ["kix-kyoto", null, "Kansai Airport Line", "JR Airport Express", "HARUKA"],
+    ["kyoto-odawara", null, "Sanyo Shinkansen", "Tōkaidō Shinkansen", undefined],
+    ["odawara-tokyo", null, "Tokaido Shinkansen", "JR 도카이도 본선", undefined],
+    ["tokyo-narita", "skyliner", "Keisei Main Line", "京成スカイライナー", undefined],
+  ] as const)("selects only the planned %s rail service", async (segmentKey, naritaRailChoice, wrongName, plannedName, plannedNameShort) => {
+    const wrong = step("HEAVY_RAIL", "??_t`B_t`B", wrongName);
+    const planned = step("COMMUTER_TRAIN", "??_ibE_ibE", plannedName, plannedNameShort);
     const fetch = vi.fn(async () => response([
-      { legs: [{ steps: [bus] }] },
-      { legs: [{ steps: [commuter] }] },
-      { legs: [{ steps: [highSpeed] }] },
+      { legs: [{ steps: [wrong] }] },
+      { legs: [{ steps: [planned] }] },
     ]));
     const client = createGoogleRoutesClient({ apiKey: "key", placeIds, fetch });
 
     await expect(client.computeRailRoute({
-      segmentKey: "kyoto-odawara",
+      segmentKey,
       departureTime: "2026-10-03T00:00:00.000Z",
-      naritaRailChoice: null,
+      naritaRailChoice,
     })).resolves.toBe("??_ibE_ibE");
+  });
+
+  it.each([
+    ["kix-kyoto", null, "Kansai Airport Line"],
+    ["kyoto-odawara", null, "Sanyo Shinkansen"],
+    ["odawara-tokyo", null, "Tokaido Shinkansen"],
+    ["tokyo-narita", "skyliner", "Keisei Main Line"],
+  ] as const)("rejects %s when the planned rail service is absent", async (segmentKey, naritaRailChoice, wrongName) => {
+    const fetch = vi.fn(async () => response([{ legs: [{ steps: [step("HEAVY_RAIL", "??_ibE_ibE", wrongName)] }] }]));
+    const client = createGoogleRoutesClient({ apiKey: "key", placeIds, fetch });
+
+    await expect(client.computeRailRoute({
+      segmentKey,
+      departureTime: "2026-10-03T00:00:00.000Z",
+      naritaRailChoice,
+    })).rejects.toThrow("Google route unavailable");
   });
 
   it("combines every rail step from the selected route into one valid encoded polyline", async () => {
     const fetch = vi.fn(async () => response([{ legs: [{ steps: [
-      step("HEAVY_RAIL", "??_t`B_t`B"),
+      step("HEAVY_RAIL", "??_t`B_t`B", "Tokaido Main Line"),
       { travelMode: "WALK", polyline: { encodedPolyline: "ignored" } },
-      step("LONG_DISTANCE_TRAIN", "_t`B_t`B_t`B_t`B"),
+      step("LONG_DISTANCE_TRAIN", "_t`B_t`B_t`B_t`B", "Tokaido Line"),
     ] }] }]));
     const client = createGoogleRoutesClient({ apiKey: "key", placeIds, fetch });
 

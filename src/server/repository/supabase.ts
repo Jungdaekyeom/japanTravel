@@ -3,6 +3,7 @@ import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import type {
+  ClaimedSessionRecord,
   CreateOpinionInput,
   OpinionRecord,
   ParticipantRecord,
@@ -74,12 +75,6 @@ function routeGeometry(row: Row): RouteGeometryRecord {
 export class SupabaseTripRepository implements TripRepository {
   constructor(private readonly client: SupabaseClient) {}
 
-  async listParticipantCredentials() {
-    const { data, error } = await this.client.from("participants").select("*");
-    fail(error);
-    return (data ?? []).map((row) => participant(row as Row));
-  }
-
   async findParticipantById(id: string) {
     const { data, error } = await this.client.from("participants").select("*").eq("id", id).maybeSingle();
     fail(error);
@@ -95,6 +90,22 @@ export class SupabaseTripRepository implements TripRepository {
       expires_at: record.expiresAt.toISOString(),
     });
     fail(error);
+  }
+
+  async claimPersonalToken(tokenHash: string, record: ClaimedSessionRecord) {
+    const { data, error } = await this.client.rpc("claim_participant_token", {
+      request_token_hash: tokenHash,
+      request_session_id: record.id,
+      request_session_token_hash: record.tokenHash,
+      request_created_at: record.createdAt.toISOString(),
+      request_expires_at: record.expiresAt.toISOString(),
+    });
+    fail(error);
+    const row = (data as Row[] | null)?.[0];
+    return row ? {
+      participantId: String(row.participant_id),
+      role: row.participant_role as "contributor" | "admin",
+    } : null;
   }
 
   async findSessionByTokenHash(tokenHash: string) {

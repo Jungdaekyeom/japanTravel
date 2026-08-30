@@ -9,7 +9,7 @@ export const ROUTE_SEGMENT_KEYS = ["kix-kyoto", "kyoto-odawara", "odawara-tokyo"
 export const routeSegmentKeySchema = z.enum(ROUTE_SEGMENT_KEYS);
 export const finalizeRailRouteInputSchema = z.object({
   departureTime: z.iso.datetime({ offset: true }),
-  naritaRailChoice: z.enum(["skyliner", "nex"]).optional(),
+  naritaRailChoice: z.enum(["skyliner"]).optional(),
 }).strict();
 
 const FINALIZATION_OPENS_AT = new Date("2026-09-06T15:00:00.000Z");

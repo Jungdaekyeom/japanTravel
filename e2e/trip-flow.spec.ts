@@ -7,6 +7,9 @@ const opinionBody = "하코네 온천 시간을 두 시간 늘리고 싶어요."
 
 type SessionRole = "observer" | "contributor" | "admin";
 type ReviewStatus = "pending" | "rejected" | null;
+const contributorToken = "c".repeat(43);
+const contributorReissueToken = "r".repeat(43);
+const adminToken = "a".repeat(43);
 
 async function installApi(page: Page) {
   let role: SessionRole = "observer";
@@ -69,10 +72,10 @@ async function installApi(page: Page) {
       await route.fulfill({ json: payload() });
       return;
     }
-    if (request.method() === "POST" && url.pathname === "/api/session/unlock") {
-      const { code } = request.postDataJSON() as { code: string };
-      role = code === "123456" ? "contributor" : code === "654321" ? "admin" : "observer";
-      await route.fulfill({ status: role === "observer" ? 401 : 200, json: role === "observer" ? { error: "invalid_credentials" } : { role } });
+    if (request.method() === "POST" && url.pathname === "/api/session/claim") {
+      const { token } = request.postDataJSON() as { token: string };
+      role = token === adminToken ? "admin" : token === contributorToken || token === contributorReissueToken ? "contributor" : "observer";
+      await route.fulfill({ status: role === "observer" ? 401 : 200, json: role === "observer" ? { error: "invalid_link" } : { role } });
       return;
     }
     if (request.method() === "DELETE" && url.pathname === "/api/session") {
@@ -107,9 +110,9 @@ async function installApi(page: Page) {
   });
 }
 
-async function unlock(page: Page, code: string) {
-  await page.getByRole("textbox", { name: "개인 코드" }).fill(code);
-  await page.getByRole("button", { name: "역할 잠금 해제" }).click();
+async function claim(page: Page, token: string) {
+  await page.goto(`/t/e2e-invite-token#join=${token}`);
+  await expect(page).toHaveURL(/\/t\/e2e-invite-token$/);
 }
 
 test("observer, contributor, admin rejection, and author acceptance stay role-scoped", async ({ page }) => {
@@ -120,7 +123,7 @@ test("observer, contributor, admin rejection, and author acceptance stay role-sc
   await expect(page.getByRole("button", { name: /일차/ })).toHaveCount(5);
   await expect(page.getByRole("heading", { name: "의견 남기기" })).toHaveCount(0);
 
-  await unlock(page, "123456");
+  await claim(page, contributorToken);
   await expect(page.getByText("박준수 · 개인 역할 활성")).toBeVisible();
   await page.getByLabel("대상 일정").selectOption("2");
   await page.getByLabel("의견", { exact: true }).fill(opinionBody);
@@ -128,7 +131,7 @@ test("observer, contributor, admin rejection, and author acceptance stay role-sc
   await expect(page.getByText("의견을 보냈습니다.")).toBeVisible();
 
   await page.getByRole("button", { name: "관찰자 모드로 전환" }).click();
-  await unlock(page, "654321");
+  await claim(page, adminToken);
   await expect(page.getByRole("heading", { name: "의견 검토" })).toBeVisible();
   await expect(page.getByText(opinionBody)).toBeVisible();
   await page.getByLabel("반려 분류").selectOption("schedule_impossible");
@@ -141,7 +144,7 @@ test("observer, contributor, admin rejection, and author acceptance stay role-sc
   await expect(page.getByRole("heading", { name: "하코네 체류 연장" })).toBeVisible();
   await expect(page.getByText("미확인")).toBeVisible();
 
-  await unlock(page, "123456");
+  await claim(page, contributorReissueToken);
   await expect(page.getByRole("button", { name: "의견 제출" })).toBeDisabled();
   await page.getByRole("button", { name: "반려 내용 확인" }).click();
   await expect(page.getByText("확인함")).toBeVisible();

@@ -9,7 +9,7 @@ const segments: readonly { key: RailSegment["key"]; title: string }[] = [
   { key: "kix-kyoto", title: "KIX → 교토" },
   { key: "kyoto-odawara", title: "교토 → 오다와라" },
   { key: "odawara-tokyo", title: "오다와라 → 도쿄" },
-  { key: "tokyo-narita", title: "도쿄 → 나리타" },
+  { key: "tokyo-narita", title: "우에노 → 나리타" },
 ];
 
 function SegmentFinalizer({
@@ -22,7 +22,6 @@ function SegmentFinalizer({
   onRefresh: () => Promise<void>;
 }) {
   const [departureTime, setDepartureTime] = useState("");
-  const [naritaRailChoice, setNaritaRailChoice] = useState<"skyliner" | "nex">("skyliner");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; success: boolean } | null>(null);
 
@@ -33,7 +32,7 @@ function SegmentFinalizer({
     try {
       const body = {
         departureTime: new Date(`${departureTime}:00+09:00`).toISOString(),
-        ...(segment.key === "tokyo-narita" ? { naritaRailChoice } : {}),
+        ...(segment.key === "tokyo-narita" ? { naritaRailChoice: "skyliner" } : {}),
       };
       const response = await fetch(`/api/admin/routes/${segment.key}/finalize`, {
         method: "POST",
@@ -73,12 +72,7 @@ function SegmentFinalizer({
           />
         </label>
         {segment.key === "tokyo-narita" && (
-          <label>나리타 철도 선택
-            <select aria-label="나리타 철도 선택" value={naritaRailChoice} onChange={(event) => setNaritaRailChoice(event.target.value as "skyliner" | "nex")}>
-              <option value="skyliner">Skyliner</option>
-              <option value="nex">N&apos;EX</option>
-            </select>
-          </label>
+          <p>이동 수단: Keisei Skyliner</p>
         )}
         <button type="submit" disabled={busy || !departureTime}>{busy ? "확정 중…" : `${segment.title} 경로 확정`}</button>
       </form>

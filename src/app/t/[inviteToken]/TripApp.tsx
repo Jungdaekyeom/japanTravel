@@ -23,6 +23,7 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
   const reducedMotion = useMedia("(prefers-reduced-motion: reduce)");
   const [payload, setPayload] = useState<TripPayload | null>(null);
   const [loadError, setLoadError] = useState("");
+  const [claimError, setClaimError] = useState("");
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelClosing, setPanelClosing] = useState(false);
   const [focusOnOpen, setFocusOnOpen] = useState(false);
@@ -56,6 +57,41 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
       if (id === refreshId.current) refreshController.current = null;
     }
   }, [inviteToken]);
+
+  useEffect(() => {
+    const controllers = new Set<AbortController>();
+    const claimFragment = () => {
+      const token = new URLSearchParams(window.location.hash.slice(1)).get("join");
+      if (token === null) return;
+      setClaimError("");
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
+      const controller = new AbortController();
+      controllers.add(controller);
+      void fetch("/api/session/claim", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token }),
+        signal: controller.signal,
+      }).then((response) => {
+        if (!response.ok && response.status !== 401) {
+          setClaimError("개인 링크를 확인하지 못했습니다. 카카오톡 링크를 다시 열어주세요.");
+        }
+      }).catch(() => {
+        if (!controller.signal.aborted) {
+          setClaimError("개인 링크를 확인하지 못했습니다. 카카오톡 링크를 다시 열어주세요.");
+        }
+      }).finally(() => {
+        controllers.delete(controller);
+        if (!controller.signal.aborted) void refresh().catch(() => {});
+      });
+    };
+    claimFragment();
+    window.addEventListener("hashchange", claimFragment);
+    return () => {
+      window.removeEventListener("hashchange", claimFragment);
+      for (const controller of controllers) controller.abort();
+    };
+  }, [refresh]);
 
   useEffect(() => {
     let intervalId: number | undefined;
@@ -134,6 +170,7 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
   return (
     <main className={styles.app}>
       <GoogleTripMap railRoutes={payload.railRoutes} selectedDay={selectedDay} playbackRequest={playbackRequest} reducedMotion={reducedMotion === true} onPlaybackComplete={playbackComplete} />
+      {claimError && <p className={styles.staleWarning} role="alert">{claimError}</p>}
       {loadError && <p className={styles.staleWarning} role="alert">최신 데이터를 불러오지 못했습니다. 기존 일정을 표시합니다.</p>}
       {(panelOpen || panelClosing) && (
         <TripPanel

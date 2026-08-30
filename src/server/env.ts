@@ -1,12 +1,17 @@
 import { z } from "zod";
 
-const participantCodeEnvSchema = z.object({
+const supabaseEnvSchema = z.object({
   SUPABASE_URL: z.url(),
   SUPABASE_SECRET_KEY: z.string().min(1),
-  SESSION_PEPPER: z.string().min(16),
 });
 
-const serverEnvSchema = participantCodeEnvSchema.extend({
+const personalLinkEnvSchema = supabaseEnvSchema.extend({
+  APP_ORIGIN: z.url(),
+  INVITE_TOKEN: z.string().min(1),
+});
+
+const serverEnvSchema = supabaseEnvSchema.extend({
+  SESSION_PEPPER: z.string().min(16),
   INVITE_TOKEN: z.string().min(1),
 });
 
@@ -21,7 +26,7 @@ const googleRoutesEnvSchema = z.object({
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
-export type ParticipantCodeEnv = z.infer<typeof participantCodeEnvSchema>;
+export type PersonalLinkEnv = z.infer<typeof personalLinkEnvSchema>;
 export type GoogleRoutesEnv = z.infer<typeof googleRoutesEnvSchema>;
 
 export function getServerEnv(): ServerEnv {
@@ -30,9 +35,9 @@ export function getServerEnv(): ServerEnv {
   return parsed.data;
 }
 
-export function getParticipantCodeEnv(): ParticipantCodeEnv {
-  const parsed = participantCodeEnvSchema.safeParse(process.env);
-  if (!parsed.success) throw new Error("Missing required participant code environment variables");
+export function getPersonalLinkEnv(): PersonalLinkEnv {
+  const parsed = personalLinkEnvSchema.safeParse(process.env);
+  if (!parsed.success) throw new Error("Missing required personal-link environment variables");
   return parsed.data;
 }
 

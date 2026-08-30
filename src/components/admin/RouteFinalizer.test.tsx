@@ -18,37 +18,34 @@ afterEach(() => {
 });
 
 describe("RouteFinalizer", () => {
-  it("shows four segments with per-segment placeholder/final status and Narita-only choices", () => {
+  it("shows the fixed Skyliner Narita segment without an admin mode choice", () => {
     render(<RouteFinalizer railRoutes={finalized} onRefresh={vi.fn(async () => {})} />);
 
     expect(screen.getByText("KIX → 교토")).toBeInTheDocument();
     expect(screen.getByText("교토 → 오다와라")).toBeInTheDocument();
     expect(screen.getByText("오다와라 → 도쿄")).toBeInTheDocument();
-    expect(screen.getByText("도쿄 → 나리타")).toBeInTheDocument();
+    expect(screen.getByText("우에노 → 나리타")).toBeInTheDocument();
     expect(screen.getByText("확정 완료")).toBeInTheDocument();
     expect(screen.getAllByText("경로 확정 전")).toHaveLength(3);
     expect(screen.getAllByLabelText(/출발 시각/)).toHaveLength(4);
-    expect(screen.getByRole("combobox", { name: "나리타 철도 선택" })).toHaveTextContent("Skyliner");
-    expect(screen.getByRole("combobox", { name: "나리타 철도 선택" })).toHaveTextContent("N'EX");
-    expect(screen.getAllByRole("combobox")).toHaveLength(1);
+    expect(screen.queryByRole("combobox", { name: "나리타 철도 선택" })).not.toBeInTheDocument();
   });
 
-  it("sends an RFC3339 departure and the selected Narita admin choice, then refreshes", async () => {
+  it("sends an RFC3339 departure with the fixed Skyliner choice, then refreshes", async () => {
     const fetch = vi.fn(async () => new Response(JSON.stringify({ route: { segmentKey: "tokyo-narita", status: "finalized" } }), { status: 200 }));
     vi.stubGlobal("fetch", fetch);
     const onRefresh = vi.fn(async () => {});
     render(<RouteFinalizer railRoutes={[]} onRefresh={onRefresh} />);
 
-    fireEvent.change(screen.getByLabelText("도쿄 → 나리타 출발 시각"), { target: { value: "2026-10-06T09:30" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "나리타 철도 선택" }), { target: { value: "nex" } });
-    fireEvent.click(screen.getByRole("button", { name: "도쿄 → 나리타 경로 확정" }));
+    fireEvent.change(screen.getByLabelText("우에노 → 나리타 출발 시각"), { target: { value: "2026-10-06T09:30" } });
+    fireEvent.click(screen.getByRole("button", { name: "우에노 → 나리타 경로 확정" }));
 
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(
       "/api/admin/routes/tokyo-narita/finalize",
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ departureTime: "2026-10-06T00:30:00.000Z", naritaRailChoice: "nex" }),
+        body: JSON.stringify({ departureTime: "2026-10-06T00:30:00.000Z", naritaRailChoice: "skyliner" }),
       },
     ));
     expect(await screen.findByRole("status")).toHaveTextContent("철도 경로를 확정했습니다.");

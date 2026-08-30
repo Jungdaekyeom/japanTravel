@@ -47,6 +47,7 @@ describe("finalizeRailRoute", () => {
     ["unknown segment", "odawara-hakone", { departureTime }, admin, "invalid_request"],
     ["invalid RFC3339", "kix-kyoto", { departureTime: "2026-10-02 10:00" }, admin, "invalid_request"],
     ["missing Narita choice", "tokyo-narita", { departureTime }, admin, "invalid_request"],
+    ["legacy N'EX Narita choice", "tokyo-narita", { departureTime: naritaDepartureTime, naritaRailChoice: "nex" }, admin, "invalid_request"],
     ["choice on another segment", "kix-kyoto", { departureTime, naritaRailChoice: "nex" }, admin, "invalid_request"],
   ])("rejects %s at the server boundary", async (_case, segmentKey, input, viewer, code) => {
     const routes = client();
@@ -62,7 +63,7 @@ describe("finalizeRailRoute", () => {
     ["kix-kyoto", "2026-10-02T15:00:00.000Z", undefined],
     ["kyoto-odawara", "2026-10-02T14:59:59.000Z", undefined],
     ["odawara-tokyo", "2026-10-03T14:59:59.000Z", undefined],
-    ["tokyo-narita", "2026-10-05T14:59:59.000Z", "nex"],
+    ["tokyo-narita", "2026-10-05T14:59:59.000Z", "skyliner"],
   ])("rejects a %s departure outside its Asia/Tokyo trip day without calling Google", async (segmentKey, invalidDepartureTime, naritaRailChoice) => {
     const routes = client();
 
@@ -94,11 +95,11 @@ describe("finalizeRailRoute", () => {
     });
   });
 
-  it("stores one encoded polyline with the Narita choice and capped expiry", async () => {
+  it("stores one encoded polyline with the fixed Skyliner choice and capped expiry", async () => {
     const repository = new InMemoryTripRepository();
     const routes = client();
 
-    const record = await finalizeRailRoute("tokyo-narita", { departureTime: naritaDepartureTime, naritaRailChoice: "nex" }, opensAt, {
+    const record = await finalizeRailRoute("tokyo-narita", { departureTime: naritaDepartureTime, naritaRailChoice: "skyliner" }, opensAt, {
       repository,
       client: routes,
       viewer: admin,
@@ -107,14 +108,14 @@ describe("finalizeRailRoute", () => {
     expect(routes.computeRailRoute).toHaveBeenCalledWith({
       segmentKey: "tokyo-narita",
       departureTime: naritaDepartureTime,
-      naritaRailChoice: "nex",
+      naritaRailChoice: "skyliner",
     });
     expect(record).toEqual({
       segmentKey: "tokyo-narita",
       status: "finalized",
       encodedPolyline,
       departureTime: naritaDepartureTime,
-      naritaRailChoice: "nex",
+      naritaRailChoice: "skyliner",
       createdAt: opensAt,
       expiresAt: new Date("2026-10-06T15:00:00.000Z"),
     });

@@ -19,6 +19,7 @@ type GoogleTripMapProps = {
 
 const EMPTY_RAIL_ROUTES: readonly PublicRailRoute[] = [];
 const TRIP_MAP_LIMITS = { north: 85, south: -85, west: 125.4, east: 141.4 } as const;
+const OVERVIEW_LABEL_KEYS = new Set(["busan", "incheon", "kix", "nrt"]);
 
 export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, playbackRequest, reducedMotion, onPlaybackComplete }: GoogleTripMapProps) {
   const [retryKey, setRetryKey] = useState(0);
@@ -63,6 +64,7 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
         const content = document.createElement("div");
         content.className = styles.marker;
         content.dataset.pinKey = pin.key;
+        content.dataset.labelVisible = String(OVERVIEW_LABEL_KEYS.has(pin.key));
         const dot = document.createElement("span");
         dot.className = styles.markerDot;
         dot.setAttribute("aria-hidden", "true");
@@ -126,6 +128,25 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
     const currentMap = map.current;
     const loaded = libraries.current;
     const layers = buildDayLayers(selectedDay, routeLines);
+    const lineLabelKeys = (keys: readonly string[] = [], endpoint?: 0 | 1) => layers.lines
+      .filter((line) => keys.includes(line.key))
+      .flatMap((line) => endpoint === undefined ? line.pinKeys : [line.pinKeys[endpoint]]);
+    const stageLabelKeys = (stage: (typeof layers.stages)[number] | undefined, endpoint?: 0 | 1) => {
+      if (!stage) return [];
+      if (stage.pinKey) return [stage.pinKey];
+      if (stage.focusPinKeys) return [...stage.focusPinKeys];
+      return lineLabelKeys(stage.lineKeys, endpoint);
+    };
+    const terminalLabelKeys = [...new Set([
+      ...stageLabelKeys(layers.stages[0], 0),
+      ...stageLabelKeys(layers.stages.at(-1), 1),
+    ])];
+    const showLabels = (keys: Iterable<string>) => {
+      const visible = new Set(keys);
+      markerContent.current.forEach((content, key) => {
+        content.dataset.labelVisible = String(visible.has(key));
+      });
+    };
     const alreadyCompleted = completedRequest.current === requestKey;
     playback.current?.cancel();
     selectedLines.current.forEach((line) => line.setMap(null));
@@ -143,7 +164,9 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
     markerContent.current.forEach((content, key) => {
       content.dataset.selected = String(selectedPinKeys.has(key));
     });
+    showLabels(stageLabelKeys(layers.stages[0]));
     fitDay(currentMap, selectedDay, routeLines);
+    let focused = false;
 
     const clearSelection = () => {
       selectedLines.current.forEach((line) => line.setMap(null));
@@ -152,13 +175,26 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
         content.dataset.active = "false";
         content.dataset.selected = "false";
       });
+      showLabels(OVERVIEW_LABEL_KEYS);
     };
-    if (alreadyCompleted) return clearSelection;
+    if (alreadyCompleted) {
+      showLabels(terminalLabelKeys);
+      return clearSelection;
+    }
 
     const routePlayback = createRoutePlayback({
       stages: layers.stages,
       reducedMotion,
       onUpdate(state) {
+        showLabels(state.completed
+          ? terminalLabelKeys
+          : state.currentPinKey
+            ? [state.currentPinKey]
+            : state.focusPinKeys ?? lineLabelKeys(Object.entries(state.progress).filter(([, progress]) => progress < 1).map(([key]) => key)));
+        if (state.focusPinKeys && !focused) {
+          focused = true;
+          fitPins(currentMap, state.focusPinKeys);
+        }
         for (const line of layers.lines) {
           const progress = state.completed ? 1 : (state.progress[line.key] ?? 0);
           selectedLines.current.get(line.key)?.setPath(pathAtProgress(line.path, progress));
@@ -200,7 +236,7 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
       {loadState === "loading" && <p className={styles.mapLoading} role="status">지도 불러오는 중…</p>}
       <div className={styles.legend} aria-label="경로 상태">
         <strong>{selectedDay ? `${selectedDay}일차 선택 경로` : "전체 경로"}</strong>
-        {routeLines.filter((line) => line.kind === "rail").map((line) => <span key={line.key}>{line.label}</span>)}
+        {routeLines.filter((line) => line.kind === "rail").map((line) => <span key={line.key}>{line.transportLabel ? `${line.transportLabel} · ${line.label}` : line.label}</span>)}
       </div>
       {loadState === "ready" && routeLines.some((line) => line.googleDerived) && <p className={styles.googleAttribution}>Powered by Google, ©2026 Google</p>}
     </section>
@@ -227,7 +263,7 @@ function dashIcon(color: string) {
 }
 
 function polylineStyle(line: MapLine, selected: boolean): google.maps.PolylineOptions {
-  const color = selected ? "#0969da" : line.kind === "flight" ? "#516b7b" : "#727b84";
+  const color = line.color;
   return {
     strokeColor: color,
     strokeOpacity: line.dashed ? 0 : selected ? 0.95 : 0.62,
@@ -252,4 +288,9 @@ function fitFullRoute(map: google.maps.Map, routeLines: readonly MapLine[]) {
 function fitDay(map: google.maps.Map, day: DayNumber, routeLines: readonly MapLine[]) {
   const layers = buildDayLayers(day, routeLines);
   map.fitBounds(bounds([...layers.lines.flatMap((line) => line.path), ...layers.pins.map((pin) => pin.position)]), 54);
+}
+
+function fitPins(map: google.maps.Map, pinKeys: readonly string[]) {
+  const selectedPins = FULL_ROUTE_PINS.filter((pin) => pinKeys.includes(pin.key));
+  map.fitBounds(bounds(selectedPins.map((pin) => pin.position)), 54);
 }

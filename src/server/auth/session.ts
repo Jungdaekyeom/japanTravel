@@ -8,17 +8,21 @@ import { hashSessionToken } from "./crypto";
 export const SESSION_COOKIE_NAME = "jt_session";
 export const SESSION_EXPIRES_AT = new Date("2026-10-13T14:59:59.000Z");
 
-export function issueSession(participantId: string, now = new Date()) {
+export function issueClaimedSession(now = new Date()) {
   const token = randomBytes(32).toString("base64url");
-  const session: SessionRecord = {
+  const session: Omit<SessionRecord, "participantId"> = {
     id: randomUUID(),
-    participantId,
     tokenHash: hashSessionToken(token),
     createdAt: now,
     expiresAt: new Date(SESSION_EXPIRES_AT),
   };
 
   return { token, session };
+}
+
+export function issueSession(participantId: string, now = new Date()) {
+  const issued = issueClaimedSession(now);
+  return { token: issued.token, session: { ...issued.session, participantId } };
 }
 
 function readCookie(request: Request, name: string) {

@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 
 import type {
+  ClaimedSessionRecord,
   CreateOpinionInput,
   LoginAttemptRecord,
   OpinionRecord,
+  ParticipantClaimTokenRecord,
   ParticipantRecord,
   RouteGeometryRecord,
   SessionRecord,
@@ -53,6 +55,7 @@ function validOpinion(opinion: OpinionRecord) {
 type InitialData = Partial<{
   participants: ParticipantRecord[];
   sessions: SessionRecord[];
+  claimTokens: ParticipantClaimTokenRecord[];
   loginAttempts: LoginAttemptRecord[];
   opinions: OpinionRecord[];
   routeGeometry: RouteGeometryRecord[];
@@ -61,21 +64,24 @@ type InitialData = Partial<{
 export class InMemoryTripRepository implements TripRepository {
   private participants: ParticipantRecord[];
   private sessions: SessionRecord[];
+  private claimTokens: ParticipantClaimTokenRecord[];
   private loginAttempts: LoginAttemptRecord[];
   private opinions: OpinionRecord[];
   private routeGeometry: RouteGeometryRecord[];
   private reservationQueue = Promise.resolve();
+  private sessionQueue = Promise.resolve();
   private opinionQueue = Promise.resolve();
 
   constructor(initial: InitialData = {}) {
     this.participants = copy(initial.participants ?? []);
     this.sessions = copy(initial.sessions ?? []);
+    this.claimTokens = copy(initial.claimTokens ?? []);
     this.loginAttempts = copy(initial.loginAttempts ?? []);
     this.opinions = copy(initial.opinions ?? []);
     this.routeGeometry = copy(initial.routeGeometry ?? []);
   }
 
-  private async locked<T>(queue: "reservationQueue" | "opinionQueue", operation: () => T) {
+  private async locked<T>(queue: "reservationQueue" | "sessionQueue" | "opinionQueue", operation: () => T) {
     let release!: () => void;
     const previous = this[queue];
     this[queue] = new Promise<void>((resolve) => { release = resolve; });
@@ -84,17 +90,31 @@ export class InMemoryTripRepository implements TripRepository {
     finally { release(); }
   }
 
-  async listParticipantCredentials() {
-    return copy(this.participants);
-  }
-
   async findParticipantById(id: string) {
     const participant = this.participants.find((candidate) => candidate.id === id);
     return participant ? copy(participant) : null;
   }
 
   async createSession(session: SessionRecord) {
+    if (this.sessions.some((candidate) => candidate.id === session.id || candidate.tokenHash === session.tokenHash)) {
+      throw new Error("Session token hash already exists");
+    }
     this.sessions.push(copy(session));
+  }
+
+  async claimPersonalToken(tokenHash: string, session: ClaimedSessionRecord) {
+    return this.locked("sessionQueue", () => {
+      const token = this.claimTokens.find((candidate) => candidate.tokenHash === tokenHash && candidate.consumedAt === null);
+      if (!token) return null;
+      const participant = this.participants.find((candidate) => candidate.id === token.participantId);
+      if (!participant) return null;
+      if (this.sessions.some((candidate) => candidate.id === session.id || candidate.tokenHash === session.tokenHash)) {
+        throw new Error("Session token hash already exists");
+      }
+      this.sessions.push(copy({ ...session, participantId: participant.id }));
+      token.consumedAt = new Date(session.createdAt);
+      return { participantId: participant.id, role: participant.role };
+    });
   }
 
   async findSessionByTokenHash(tokenHash: string) {

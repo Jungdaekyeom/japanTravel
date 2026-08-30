@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "codes:issue": "tsx scripts/issue-participant-codes.ts",
+    "links:issue": "tsx scripts/issue-personal-links.ts",
     "e2e": "playwright test",
     "lint": "eslint .",
     "start": "next start",

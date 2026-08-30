@@ -11,8 +11,10 @@
 .markerDot { width: 13px; height: 13px; border: 2px solid #fff; border-radius: 50%; background: #24292f; box-shadow: 0 2px 7px rgba(0, 0, 0, 0.32); }
 .marker[data-selected="true"] .markerDot { outline: 3px solid rgba(9, 105, 218, 0.28); outline-offset: 2px; }
 .marker[data-selected="true"] .markerLabel { text-decoration: underline; text-underline-offset: 2px; }
-.marker[data-active="true"] .markerDot { background: #0969da; box-shadow: 0 0 0 5px rgba(9, 105, 218, 0.22); }
-.markerLabel { border-radius: 6px; background: rgba(255, 255, 255, 0.9); color: #24292f; padding: 3px 5px; font-size: 10px; font-weight: 750; white-space: nowrap; }
+.marker[data-active="true"] .markerDot { animation: markerPulse 450ms ease-out 1; background: #0969da; box-shadow: 0 0 0 5px rgba(9, 105, 218, 0.22); }
+.markerLabel { display: none; border-radius: 6px; background: rgba(255, 255, 255, 0.9); color: #24292f; padding: 3px 5px; font-size: 10px; font-weight: 750; white-space: nowrap; }
+.marker[data-label-visible="true"] .markerLabel { display: block; }
+@keyframes markerPulse { 0% { box-shadow: 0 0 0 0 rgba(9, 105, 218, 0.58); } 100% { box-shadow: 0 0 0 9px rgba(9, 105, 218, 0); } }
 .fallback { position: absolute; inset: 0; display: grid; align-content: center; gap: 18px; overflow-y: auto; background: radial-gradient(circle at 85% 10%, #273542, #111820 56%); color: #f0f6fc; padding: max(22px, env(safe-area-inset-top)) 22px max(22px, env(safe-area-inset-bottom)); }
 .fallback h2, .fallback p { margin: 4px 0; }
 .kicker { color: #7ee787; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.12em; }
@@ -25,4 +27,4 @@
 .railFallback small { overflow: hidden; color: #8c959f; font-size: 0.62rem; text-overflow: ellipsis; }
 .railFallback strong { font-size: 0.7rem; }
 .fallback button { min-height: 44px; border: 1px solid #58a6ff; border-radius: 10px; background: #1f6feb; color: white; font-weight: 700; }
-@media (prefers-reduced-motion: reduce) { .marker { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .marker, .marker[data-active="true"] .markerDot { animation: none; transition: none; } }

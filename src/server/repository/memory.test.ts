@@ -3,6 +3,79 @@ import { describe, expect, it } from "vitest";
 import { InMemoryTripRepository } from "./memory";
 
 describe("InMemoryTripRepository", () => {
+  it("atomically consumes a personal token only once", async () => {
+    const repository = new InMemoryTripRepository({
+      participants: [{
+        id: "gyuyeol",
+        name: "이규열",
+        birthYear: 1998,
+        departureCity: "인천",
+        role: "contributor",
+        codeSalt: "legacy-salt",
+        codeHash: "legacy-hash",
+        createdAt: new Date("2026-08-28T00:00:00.000Z"),
+      }],
+      claimTokens: [{
+        participantId: "gyuyeol",
+        tokenHash: "claim-hash",
+        issuedAt: new Date("2026-08-30T00:00:00.000Z"),
+        consumedAt: null,
+      }],
+    } as never);
+    const firstSession = {
+      id: "session-1",
+      participantId: "gyuyeol",
+      tokenHash: "session-hash-1",
+      createdAt: new Date("2026-08-30T00:00:00.000Z"),
+      expiresAt: new Date("2026-10-13T14:59:59.000Z"),
+    };
+    const secondSession = { ...firstSession, id: "session-2", tokenHash: "session-hash-2" };
+
+    await expect((repository as never as { claimPersonalToken(hash: string, session: typeof firstSession): Promise<unknown> })
+      .claimPersonalToken("claim-hash", firstSession)).resolves.toEqual({ participantId: "gyuyeol", role: "contributor" });
+    await expect((repository as never as { claimPersonalToken(hash: string, session: typeof secondSession): Promise<unknown> })
+      .claimPersonalToken("claim-hash", secondSession)).resolves.toBeNull();
+    await expect(repository.findSessionByTokenHash("session-hash-1")).resolves.toEqual(firstSession);
+    await expect(repository.findSessionByTokenHash("session-hash-2")).resolves.toBeNull();
+  });
+
+  it("does not consume a personal token when session insertion fails", async () => {
+    const createdAt = new Date("2026-08-30T00:00:00.000Z");
+    const repository = new InMemoryTripRepository({
+      participants: [{
+        id: "gyuyeol",
+        name: "이규열",
+        birthYear: 1998,
+        departureCity: "인천",
+        role: "contributor",
+        codeSalt: "legacy-salt",
+        codeHash: "legacy-hash",
+        createdAt,
+      }],
+      sessions: [{
+        id: "existing-session",
+        participantId: "gyuyeol",
+        tokenHash: "duplicate-session-hash",
+        createdAt,
+        expiresAt: new Date("2026-10-13T14:59:59.000Z"),
+      }],
+      claimTokens: [{ participantId: "gyuyeol", tokenHash: "claim-hash", issuedAt: createdAt, consumedAt: null }],
+    } as never);
+
+    await expect(repository.claimPersonalToken("claim-hash", {
+      id: "failed-session",
+      tokenHash: "duplicate-session-hash",
+      createdAt,
+      expiresAt: new Date("2026-10-13T14:59:59.000Z"),
+    })).rejects.toThrow("Session token hash already exists");
+    await expect(repository.claimPersonalToken("claim-hash", {
+      id: "retry-session",
+      tokenHash: "new-session-hash",
+      createdAt,
+      expiresAt: new Date("2026-10-13T14:59:59.000Z"),
+    })).resolves.toEqual({ participantId: "gyuyeol", role: "contributor" });
+  });
+
   it("stores sessions by token hash and removes them on logout", async () => {
     const repository = new InMemoryTripRepository();
     const session = {

@@ -21,6 +21,16 @@ export type SessionRecord = {
   expiresAt: Date;
 };
 
+export type ParticipantClaimTokenRecord = {
+  participantId: string;
+  tokenHash: string;
+  issuedAt: Date;
+  consumedAt: Date | null;
+};
+
+export type PersonalTokenClaim = { participantId: string; role: ParticipantRecord["role"] };
+export type ClaimedSessionRecord = Omit<SessionRecord, "participantId">;
+
 export type LoginAttemptRecord = {
   id: string;
   ipHash: string;
@@ -71,9 +81,9 @@ export type UpdateOpinionInput = Partial<
 >;
 
 export type TripRepository = {
-  listParticipantCredentials(): Promise<readonly ParticipantRecord[]>;
   findParticipantById(id: string): Promise<ParticipantRecord | null>;
   createSession(session: SessionRecord): Promise<void>;
+  claimPersonalToken(tokenHash: string, session: ClaimedSessionRecord): Promise<PersonalTokenClaim | null>;
   findSessionByTokenHash(tokenHash: string): Promise<SessionRecord | null>;
   deleteSessionByTokenHash(tokenHash: string): Promise<void>;
   reserveLoginAttempt(ipHash: string, now: Date): Promise<string | null>;

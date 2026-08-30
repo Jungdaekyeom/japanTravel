@@ -1,11 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getParticipantCodeEnv, getServerEnv } from "./env";
+import { getPersonalLinkEnv, getServerEnv } from "./env";
 
 const commonEnv = {
   SUPABASE_URL: "https://example.supabase.co",
   SUPABASE_SECRET_KEY: "sb_secret_example",
   SESSION_PEPPER: "a-secure-session-pepper",
+};
+
+const personalLinkEnv = {
+  SUPABASE_URL: commonEnv.SUPABASE_URL,
+  SUPABASE_SECRET_KEY: commonEnv.SUPABASE_SECRET_KEY,
+  APP_ORIGIN: "https://trip.example.com",
+  INVITE_TOKEN: "invite-token",
 };
 
 function stubEnvironment(values: Record<string, string>) {
@@ -14,6 +21,7 @@ function stubEnvironment(values: Record<string, string>) {
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "");
   vi.stubEnv("SESSION_PEPPER", "");
   vi.stubEnv("INVITE_TOKEN", "");
+  vi.stubEnv("APP_ORIGIN", "");
   for (const [name, value] of Object.entries(values)) vi.stubEnv(name, value);
 }
 
@@ -37,9 +45,9 @@ describe("server environment", () => {
     expect(() => getServerEnv()).toThrow("Missing required server environment variables");
   });
 
-  it("validates code-issuance variables without requiring an invite token", () => {
-    stubEnvironment(commonEnv);
+  it("requires the app origin and invite token for personal-link issuance", () => {
+    stubEnvironment(personalLinkEnv);
 
-    expect(getParticipantCodeEnv()).toEqual(commonEnv);
+    expect(getPersonalLinkEnv()).toEqual(personalLinkEnv);
   });
 });
