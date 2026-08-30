@@ -4,11 +4,13 @@ export type GoogleMapsLibraries = {
 };
 
 let loading: Promise<GoogleMapsLibraries> | null = null;
+const READY_CALLBACK = "__japanTravelGoogleMapsReady";
 
 type GoogleApiBoundary = { maps?: { importLibrary?: (name: string) => Promise<unknown> } };
+type GoogleApiWindow = Window & { google?: GoogleApiBoundary; __japanTravelGoogleMapsReady?: () => void };
 
 function googleApi() {
-  return (window as unknown as { google?: GoogleApiBoundary }).google;
+  return (window as unknown as GoogleApiWindow).google;
 }
 
 async function importLibraries(): Promise<GoogleMapsLibraries> {
@@ -40,17 +42,22 @@ export function loadGoogleMaps(apiKey: string): Promise<GoogleMapsLibraries> {
     language: "ko",
     region: "JP",
     auth_referrer_policy: "origin",
+    callback: READY_CALLBACK,
   }).toString();
   script.src = url.toString();
   script.async = true;
   script.dataset.googleMapsScript = "true";
 
+  const apiWindow = window as unknown as GoogleApiWindow;
   loading = new Promise<void>((resolve, reject) => {
-    script.addEventListener("load", () => resolve(), { once: true });
+    apiWindow.__japanTravelGoogleMapsReady = resolve;
     script.addEventListener("error", () => reject(new Error("Google Maps 스크립트를 불러오지 못했습니다.")), { once: true });
     document.head.append(script);
   })
     .then(importLibraries)
+    .finally(() => {
+      delete apiWindow.__japanTravelGoogleMapsReady;
+    })
     .catch((error) => {
       script.remove();
       loading = null;

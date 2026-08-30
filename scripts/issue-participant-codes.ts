@@ -1,4 +1,5 @@
 import { randomInt, randomBytes } from "node:crypto";
+import { loadEnvFile } from "node:process";
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -6,6 +7,12 @@ import { hashParticipantCode } from "../src/server/auth/crypto.ts";
 import { getParticipantCodeEnv } from "../src/server/env.ts";
 import { TRIP_DEFINITION } from "../src/trip/definition.ts";
 import { parseIssueCodeMode } from "./issue-participant-codes-options.ts";
+
+try {
+  loadEnvFile(".env.local");
+} catch (error) {
+  if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
+}
 
 function makeCode(issued: Set<string>) {
   let code = "";

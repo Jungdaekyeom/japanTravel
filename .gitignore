@@ -12,3 +12,6 @@ test-results/
 .DS_Store
 .superpowers/sdd/
 .vercel/
+supabase/.temp/
+.env*
+!.env.example

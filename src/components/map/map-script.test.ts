@@ -6,6 +6,7 @@ beforeEach(() => {
   vi.resetModules();
   document.head.innerHTML = "";
   delete (window as unknown as { google?: unknown }).google;
+  delete (window as unknown as { __japanTravelGoogleMapsReady?: unknown }).__japanTravelGoogleMapsReady;
 });
 
 afterEach(() => {
@@ -29,13 +30,15 @@ describe("loadGoogleMaps", () => {
       language: "ko",
       region: "JP",
       auth_referrer_policy: "origin",
+      callback: "__japanTravelGoogleMapsReady",
     });
 
+    scripts[0].dispatchEvent(new Event("load"));
     const mapsLibrary = { Map: class {}, Polyline: class {}, LatLngBounds: class {} };
     const markerLibrary = { AdvancedMarkerElement: class {} };
     const importLibrary = vi.fn(async (name: string) => name === "maps" ? mapsLibrary : markerLibrary);
     (window as unknown as { google: unknown }).google = { maps: { importLibrary } };
-    scripts[0].dispatchEvent(new Event("load"));
+    (window as unknown as { __japanTravelGoogleMapsReady: () => void }).__japanTravelGoogleMapsReady();
 
     await expect(first).resolves.toEqual({ maps: mapsLibrary, marker: markerLibrary });
     await expect(second).resolves.toEqual({ maps: mapsLibrary, marker: markerLibrary });
