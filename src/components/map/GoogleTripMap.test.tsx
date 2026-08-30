@@ -203,6 +203,21 @@ describe("GoogleTripMap", () => {
     expect(screen.getByText("전체 경로")).toBeInTheDocument();
   });
 
+  it("limits horizontal panning to small margins beyond Incheon and Narita", async () => {
+    installGoogleBoundary();
+    render(<GoogleTripMap selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+
+    await waitFor(() => expect(FakeMap.instances).toHaveLength(1));
+    const restriction = FakeMap.instances[0].options.restriction as google.maps.MapRestriction;
+    const limits = restriction.latLngBounds as google.maps.LatLngBoundsLiteral;
+
+    expect(restriction.strictBounds).toBe(false);
+    expect(limits.west).toBeGreaterThanOrEqual(125);
+    expect(limits.west).toBeLessThan(126.4407);
+    expect(limits.east).toBeGreaterThan(140.3929);
+    expect(limits.east).toBeLessThanOrEqual(142);
+  });
+
   it("draws final rail geometry on Google Maps and shows attribution only while it is visible", async () => {
     installGoogleBoundary();
     render(<GoogleTripMap railRoutes={[finalRailRoute]} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);

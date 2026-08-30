@@ -18,6 +18,7 @@ type GoogleTripMapProps = {
 };
 
 const EMPTY_RAIL_ROUTES: readonly PublicRailRoute[] = [];
+const TRIP_MAP_LIMITS = { north: 85, south: -85, west: 125.4, east: 141.4 } as const;
 
 export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, playbackRequest, reducedMotion, onPlaybackComplete }: GoogleTripMapProps) {
   const [retryKey, setRetryKey] = useState(0);
@@ -55,6 +56,7 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
         clickableIcons: false,
         gestureHandling: "greedy",
         keyboardShortcuts: true,
+        restriction: { latLngBounds: TRIP_MAP_LIMITS, strictBounds: false },
       });
       map.current = nextMap;
       markers.current = FULL_ROUTE_PINS.map((pin) => {
