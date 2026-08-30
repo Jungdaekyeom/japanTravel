@@ -93,7 +93,7 @@ cp .env.example .env.local
 - 검색 색인 차단, strict-origin, CSP, 약관·개인정보 페이지
 - 모바일/데스크톱/권한 흐름 Vitest·Playwright 테스트
 
-마지막 전체 검증 기준은 Vitest 151개, Playwright 4개, lint, typecheck, production build 통과다. 새 컴퓨터에서는 아래 명령으로 다시 확인한다.
+마지막 전체 검증 기준은 Vitest 176개, Playwright 4개, lint, typecheck, production build 통과다. Production 모바일 브라우저에서도 Google 지도 로드, 5일 일정, 1일차 자동 접힘·1회 재생 완료를 확인했다. 새 컴퓨터에서는 아래 명령으로 다시 확인한다.
 
 ```bash
 pnpm lint
@@ -104,15 +104,14 @@ pnpm exec playwright install chromium
 pnpm exec playwright test
 ```
 
-## 외부에서 아직 하지 않은 일
+## 운영 상태와 남은 외부 작업
 
-- Vercel 배포
-- Supabase 프로젝트 생성과 migration 적용
-- 실제 환경변수 등록
-- 네 명의 개인 링크 발급·개별 전달
-- 실제 Google Maps/Routes 키와 Map ID·Place ID 연결
-- 실제 Google 응답으로 네 철도 구간 및 두 나리타 선택 검증
-- 실제 모바일 기기에서 지도·저작권 표시·쿠키·CSP 수동 점검
+- Vercel Production은 `https://japan-travel-theta.vercel.app`에 배포됐다. 초대 토큰이 포함된 실제 경로는 문서에 기록하지 않는다.
+- Supabase Production에는 `202608300001_personal_link_claims.sql`까지 적용됐고, 미사용 개인 링크 네 개가 발급됐다. 링크 원문은 문서와 Git에 저장하지 않는다.
+- Vercel Production에는 핵심 Supabase·세션·초대·Google Maps JavaScript API·Map ID 환경변수가 등록됐다.
+- Google Routes 서버 키와 여섯 Place ID는 아직 등록하지 않았다. 2026년 9월 7일 이후 네 철도 구간을 확정할 때 추가하고 실제 Google 응답을 검증한다. 나리타 구간은 우에노 출발 게이세이 스카이라이너로 고정한다.
+- Playwright 모바일 크기 검증은 끝났지만 실제 카카오 인앱 브라우저·휴대폰에서 쿠키와 UI를 한 번 더 확인해야 한다.
+- 로컬 커밋은 완료됐으나 이 컴퓨터의 GitHub HTTPS/SSH 인증이 없어 원격 push는 보류됐다.
 
 `.env.local`과 Vercel에 필요한 변수 이름은 `.env.example`을 기준으로 한다. 값을 문서, 커밋, 이슈, 로그에 붙여넣지 않는다.
 
@@ -127,10 +126,10 @@ pnpm exec playwright test
 
 ## 다음 작업 우선순위
 
-1. 사용자가 카메라 추적 연출을 최종 승인하면 `GoogleTripMap`의 기존 재생 상태를 사용해 현재 경로 끝점으로 `panTo`하고, 완료 후 `fitBounds`하도록 테스트 우선으로 구현한다.
-2. 기능 브랜치를 `main`에 병합할지 PR로 검토할지 결정한다.
-3. Supabase staging과 제한된 Google 키로 외부 통합을 검증한다.
-4. Vercel에 배포하고 모바일 실기기 수동 점검을 수행한다.
+1. GitHub 인증 후 `codex/japan-trip-app` 브랜치의 로컬 커밋을 원격에 push한다.
+2. Google Routes 서버 키와 여섯 Place ID를 등록하고 네 철도 구간을 실제 응답으로 검증한다.
+3. 실제 카카오 인앱 브라우저와 휴대폰에서 개인 링크·쿠키·지도 저작권 표시를 수동 점검한다.
+4. 기능 브랜치를 `main`에 병합할지 PR로 검토한다.
 
 범위를 임의로 넓히지 않는다. GPS, 실시간 교통·운항, PWA, 푸시, 분석, 카카오 로그인, OpenAI·MCP는 사용자가 다시 요청하기 전까지 제외한다.
 
