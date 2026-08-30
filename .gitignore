@@ -5,13 +5,9 @@ out/
 coverage/
 playwright-report/
 test-results/
-.env
-.env.local
-.env.*.local
+.env*
 !.env.example
 .DS_Store
 .superpowers/sdd/
 .vercel/
 supabase/.temp/
-.env*
-!.env.example
