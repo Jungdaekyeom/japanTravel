@@ -20,7 +20,7 @@
 - 공개 여행자 정보는 `id`와 `name`만 포함하며 생년, 역할, 출발 도시, 인증 정보를 포함하지 않는다.
 - `null` 여행자 선택은 전원이며 첫 진입 기본값이다. 사람 선택만으로 재생하거나 패널을 닫지 않는다.
 - 1일차와 5일차만 개인 경로를 필터링하고 2~4일차는 모든 여행자에게 공통이다.
-- 지도 핀과 이동 라벨에는 사람 이름을 넣지 않는다. 사람 이름은 여행자 선택 탭에만 둔다.
+- 지도 핀과 이동 라벨에는 사람 이름을 넣지 않는다. UI의 사람 이름은 여행자 선택 탭과 현재 선택을 알리는 접근성 라이브 상태에만 둔다.
 - 이천시청 좌표는 `37.2723484, 127.4350167`, 수원시청 좌표는 `37.2634787, 127.0287097`을 사용하고 만덕터널 인근 좌표는 유지한다.
 - 항공편명, 실제 시각, 터미널, 실시간 운항·교통 정보와 선택 상태 영속화는 추가하지 않는다.
 - 의견·관리 진입점에는 경로 개발을 위해 보류했으며 사용자 요청 시 공개 의견 모델로 재설계한다는 인라인 주석을 남긴다.
@@ -34,7 +34,6 @@
 
 **Files:**
 - Create: `src/trip/travelers.ts`
-- Create: `src/trip/travelers.test.ts`
 - Create: `src/app/api/trip/route.ts`
 - Create: `src/app/api/trip/route.test.ts`
 - Modify: `src/trip/public.ts`
@@ -49,27 +48,9 @@
 - Consumes: 기존 `PUBLIC_TRIP_DEFINITION`, `PublicRailRoute`, `TripRepository.listRouteGeometry(now)`와 확정 geometry 필터링 규칙.
 - Produces: `TRAVELERS`, `TravelerId`, `PublicTraveler`, `SharedTripPayload`, `buildSharedTripPayload(routes, now)`, `getSupabaseEnv()`, 토큰 없는 `GET /api/trip`.
 
-- [ ] **Step 1: 여행자 공개 계약과 공통 payload의 실패 테스트 작성**
+- [ ] **Step 1: 공통 payload에서 관찰되는 여행자 공개 계약의 실패 테스트 작성**
 
-```ts
-import { describe, expect, it } from "vitest";
-
-import { TRAVELERS } from "./travelers";
-
-describe("public travelers", () => {
-  it("publishes only the fixed traveler ids and names", () => {
-    expect(TRAVELERS).toEqual([
-      { id: "daekyeom", name: "정대겸" },
-      { id: "gyuyeol", name: "이규열" },
-      { id: "junsu", name: "박준수" },
-      { id: "gyujun", name: "한규준" },
-    ]);
-    expect(JSON.stringify(TRAVELERS)).not.toMatch(/birthYear|role|departureCity|token|session/);
-  });
-});
-```
-
-`src/server/trip/payload.test.ts`에는 다음 계약을 추가한다.
+`src/server/trip/payload.test.ts`에 실제 API가 소비하는 payload 경계를 검증한다.
 
 ```ts
 it("builds one role-free shared payload", () => {
@@ -86,12 +67,13 @@ it("builds one role-free shared payload", () => {
     railRoutes: [],
   });
   expect(JSON.stringify(payload)).not.toMatch(/role|displayName|ownOpinions|reviewQueue|publicRejections|birthYear/);
+  expect(JSON.stringify(payload)).not.toMatch(/departureCity|token|session/);
 });
 ```
 
 - [ ] **Step 2: 새 계약 테스트가 정의 누락으로 실패하는지 확인**
 
-Run: `pnpm test --run src/trip/travelers.test.ts src/server/trip/payload.test.ts`
+Run: `pnpm test --run src/server/trip/payload.test.ts`
 
 Expected: FAIL because `TRAVELERS` and `buildSharedTripPayload` do not exist.
 
@@ -142,7 +124,7 @@ export function buildSharedTripPayload(
 
 - [ ] **Step 4: 공통 payload 테스트 통과 확인**
 
-Run: `pnpm test --run src/trip/travelers.test.ts src/trip/public.test.ts src/server/trip/payload.test.ts`
+Run: `pnpm test --run src/trip/public.test.ts src/server/trip/payload.test.ts`
 
 Expected: PASS, including existing legacy role payload tests.
 
@@ -234,14 +216,14 @@ export function getSupabaseEnv(): SupabaseEnv {
 
 - [ ] **Step 8: Task 1 테스트와 타입 검사 통과 확인**
 
-Run: `pnpm test --run src/trip/travelers.test.ts src/trip/public.test.ts src/server/trip/payload.test.ts src/app/api/trip/route.test.ts src/server/env.test.ts && pnpm typecheck`
+Run: `pnpm test --run src/trip/public.test.ts src/server/trip/payload.test.ts src/app/api/trip/route.test.ts src/server/env.test.ts && pnpm typecheck`
 
 Expected: PASS.
 
 - [ ] **Step 9: Task 1 커밋**
 
 ```bash
-git add src/trip/travelers.ts src/trip/travelers.test.ts src/trip/public.ts src/trip/public.test.ts src/server/trip/payload.ts src/server/trip/payload.test.ts src/server/env.ts src/server/env.test.ts src/server/repository/index.ts src/app/api/trip/route.ts src/app/api/trip/route.test.ts
+git add src/trip/travelers.ts src/trip/public.ts src/trip/public.test.ts src/server/trip/payload.ts src/server/trip/payload.test.ts src/server/env.ts src/server/env.test.ts src/server/repository/index.ts src/app/api/trip/route.ts src/app/api/trip/route.test.ts
 git commit -m "feat: 공개 여행 API와 여행자 목록 추가"
 ```
 
@@ -842,7 +824,7 @@ Expected: unit test FAIL until the root map rule exists; E2E FAIL until all fixt
 
 - [ ] **Step 3: `/`에만 기존 Google Maps CSP 적용**
 
-`next.config.ts`의 일반 엄격 정책 뒤에 정확한 루트 rule을 둔다. 레거시 `/t/:path*` rule은 redirect 응답 호환을 위해 유지해도 되며 `/terms`·`/privacy`에는 지도 정책을 추가하지 않는다.
+`next.config.ts`에서 기존 `/t/:path*` 지도 rule의 source를 정확한 `/`로 바꾼다. 레거시 `/t/:path*` redirect는 일반 엄격 정책을 사용하며 `/terms`·`/privacy`에도 지도 정책을 추가하지 않는다.
 
 ```ts
 {
