@@ -1,0 +1,40 @@
+# Local history changes are permitted only after following the project contract.
+prefix_rule(
+    pattern=["git", "add"],
+    decision="allow",
+    justification="Stage only task-scoped files after review.",
+)
+prefix_rule(
+    pattern=["git", "commit"],
+    decision="allow",
+    justification="Create a reviewed, tested non-amend commit.",
+)
+
+# Any remote update requires an explicit approval for that push.
+prefix_rule(
+    pattern=["git", "push"],
+    decision="prompt",
+    justification="Report the branch, changed files, test results, and commit SHA; then obtain explicit user approval before pushing.",
+)
+
+# Destructive history rewrites are never permitted.
+prefix_rule(
+    pattern=["git", "commit", "--amend"],
+    decision="forbidden",
+    justification="Amending commits rewrites history and is prohibited.",
+)
+prefix_rule(
+    pattern=["git", "push", "--force"],
+    decision="forbidden",
+    justification="Force-pushing rewrites remote history and is prohibited.",
+)
+prefix_rule(
+    pattern=["git", "push", "-f"],
+    decision="forbidden",
+    justification="Force-pushing rewrites remote history and is prohibited.",
+)
+prefix_rule(
+    pattern=["git", "push", "--force-with-lease"],
+    decision="forbidden",
+    justification="Force-pushing rewrites remote history and is prohibited.",
+)
