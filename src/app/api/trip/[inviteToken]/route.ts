@@ -10,7 +10,7 @@ import type { TripRepository } from "../../../../server/repository/types";
 export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ inviteToken: string }> };
-type TripDependencies = { repository: TripRepository; inviteToken: string; now?: () => Date };
+type TripDependencies = { repository: TripRepository; inviteToken: string; now?: () => Date; allowDemoInvite?: boolean };
 
 const paramsSchema = z.object({ inviteToken: z.string().min(1).max(256) }).strict();
 
@@ -26,10 +26,10 @@ function notFound() {
   return NextResponse.json({ error: "not_found" }, { status: 404 });
 }
 
-export function createTripHandler({ repository, inviteToken, now = () => new Date() }: TripDependencies) {
+export function createTripHandler({ repository, inviteToken, now = () => new Date(), allowDemoInvite = false }: TripDependencies) {
   return async function trip(request: Request, context: RouteContext) {
     const params = paramsSchema.safeParse(await context.params);
-    if (!params.success || !hasMatchingInviteToken(params.data.inviteToken, inviteToken)) return notFound();
+    if (!params.success || (!hasMatchingInviteToken(params.data.inviteToken, inviteToken) && !(allowDemoInvite && params.data.inviteToken === "demo"))) return notFound();
     try {
       const requestTime = now();
       const [viewer, opinions, routes] = await Promise.all([
@@ -50,5 +50,5 @@ export async function GET(request: Request, context: RouteContext) {
     import("../../../../server/repository"),
   ]);
   const env = getServerEnv();
-  return createTripHandler({ repository: getTripRepository(), inviteToken: env.INVITE_TOKEN })(request, context);
+  return createTripHandler({ repository: getTripRepository(), inviteToken: env.INVITE_TOKEN, allowDemoInvite: process.env.NODE_ENV === "development" })(request, context);
 }

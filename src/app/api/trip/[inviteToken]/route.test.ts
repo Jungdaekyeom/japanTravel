@@ -37,4 +37,26 @@ describe("GET /api/trip/[inviteToken]", () => {
     expect(payload.railRoutes).toEqual([expect.objectContaining({ segmentKey: "odawara-tokyo", status: "finalized", label: "철도 이동" })]);
     expect(JSON.stringify(payload)).not.toContain("private-invite-token");
   });
+
+  it("accepts the demo alias only when local development explicitly enables it", async () => {
+    const disabledResponse = await createTripHandler({
+      repository: new InMemoryTripRepository(),
+      inviteToken: "private-invite-token",
+    })(
+      new Request("https://example.test/api/trip/demo"),
+      { params: Promise.resolve({ inviteToken: "demo" }) },
+    );
+    const response = await createTripHandler({
+      repository: new InMemoryTripRepository(),
+      inviteToken: "private-invite-token",
+      allowDemoInvite: true,
+    })(
+      new Request("http://localhost:3000/api/trip/demo"),
+      { params: Promise.resolve({ inviteToken: "demo" }) },
+    );
+
+    expect(disabledResponse.status).toBe(404);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ role: "observer" });
+  });
 });

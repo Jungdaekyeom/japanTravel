@@ -17,11 +17,6 @@ export function StaticItinerary({ selectedDay, message, onRetry }: { selectedDay
           </li>
         ))}
       </ol>
-      <div className={styles.railFallback} aria-label="철도 경로 상태">
-        {PUBLIC_TRIP_DEFINITION.railSegments.map((segment) => (
-          <span key={segment.key}><small>{segment.key}</small><strong>경로 확정 전</strong></span>
-        ))}
-      </div>
       <button type="button" onClick={onRetry}>지도 다시 불러오기</button>
     </section>
   );

@@ -26,7 +26,7 @@ export type ItineraryDay = {
   summary: string;
   overnight: "교토" | "하코네" | "도쿄" | null;
 };
-export type PlaceKey = "busan" | "incheon" | "kix" | "kyoto" | "kiyomizu" | "kinkaku" | "ginkaku" | "odawara" | "hakone" | "tokyo" | "ueno" | "shinjuku" | "shibuya" | "akihabara" | "sensoji" | "ginza" | "nrt";
+export type PlaceKey = "mandeok" | "suwon" | "icheon" | "busan" | "incheon" | "kix" | "kyoto" | "kiyomizu" | "kinkaku" | "ginkaku" | "odawara" | "hakone" | "tokyo" | "ueno" | "shinjuku" | "shibuya" | "akihabara" | "sensoji" | "ginza" | "nrt";
 export type Place = { name: string; latitude: number; longitude: number };
 export type RailSegment = {
   key: "kix-kyoto" | "kyoto-odawara" | "odawara-tokyo" | "tokyo-narita";
@@ -52,11 +52,11 @@ export const PUBLIC_TRIP_DEFINITION = {
   startDate: "2026-10-02",
   endDate: "2026-10-06",
   days: [
-    { day: 1, date: "2026-10-02", title: "간사이국제공항에서 교토역", summary: "부산·인천에서 KIX 도착 후 JR 하루카로 교토역 이동, 교토 명소 방문", overnight: "교토" },
-    { day: 2, date: "2026-10-03", title: "교토역에서 하코네유모토역", summary: "교토역에서 신칸센으로 오다와라역 이동 후 하코네유모토역 이동", overnight: "하코네" },
-    { day: 3, date: "2026-10-04", title: "하코네유모토역에서 도쿄", summary: "하코네유모토역에서 오다와라역을 거쳐 도카이도 본선·야마노테선으로 도쿄·우에노 이동", overnight: "도쿄" },
+    { day: 1, date: "2026-10-02", title: "간사이국제공항에서 교토역", summary: "부산·인천에서 KIX 도착 후 교토역 이동, 교토 명소 방문", overnight: "교토" },
+    { day: 2, date: "2026-10-03", title: "교토역에서 하코네유모토역", summary: "교토역에서 오다와라역을 거쳐 하코네유모토역 이동", overnight: "하코네" },
+    { day: 3, date: "2026-10-04", title: "하코네유모토역에서 우에노", summary: "하코네유모토역에서 오다와라역을 거쳐 우에노 이동", overnight: "도쿄" },
     { day: 4, date: "2026-10-05", title: "도쿄 관광", summary: "아키하바라·센소지·긴자 관광", overnight: "도쿄" },
-    { day: 5, date: "2026-10-06", title: "우에노역에서 나리타국제공항", summary: "우에노역에서 게이세이 스카이라이너로 나리타국제공항 이동 후 귀국", overnight: null },
+    { day: 5, date: "2026-10-06", title: "우에노역에서 나리타국제공항", summary: "우에노역에서 나리타국제공항 이동 후 귀국", overnight: null },
   ],
   railSegments: [
     { key: "kix-kyoto", from: "kix", to: "kyoto" },
@@ -65,6 +65,9 @@ export const PUBLIC_TRIP_DEFINITION = {
     { key: "tokyo-narita", from: "ueno", to: "nrt", naritaRailChoices: ["skyliner"] },
   ],
   places: {
+    mandeok: { name: "만덕터널 인근", latitude: 35.215263, longitude: 129.028309 },
+    suwon: { name: "수원역", latitude: 37.266093, longitude: 126.999851 },
+    icheon: { name: "이천역", latitude: 37.2656, longitude: 127.442 },
     busan: { name: "김해국제공항", latitude: 35.1796, longitude: 128.9382 },
     incheon: { name: "인천국제공항", latitude: 37.4602, longitude: 126.4407 },
     kix: { name: "간사이국제공항", latitude: 34.4347, longitude: 135.244 },

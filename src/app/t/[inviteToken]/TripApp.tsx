@@ -30,6 +30,7 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
   const [selectedDay, setSelectedDay] = useState<DayNumber | null>(null);
   const [playbackRequest, setPlaybackRequest] = useState(0);
   const [completedDay, setCompletedDay] = useState<DayNumber | null>(null);
+  const [playingAll, setPlayingAll] = useState(false);
   const [liveStatus, setLiveStatus] = useState("전체 5일 경로 표시 중");
   const closeTimer = useRef<number | null>(null);
   const openButtonRef = useRef<HTMLButtonElement>(null);
@@ -137,6 +138,7 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
   }
 
   function selectDay(day: DayNumber) {
+    setPlayingAll(false);
     setLiveStatus(`${day}일차 선택됨. 패널 닫는 중`);
     setCompletedDay(null);
     setSelectedDay(null);
@@ -147,15 +149,39 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
     });
   }
 
+  function selectAllDays() {
+    setPlayingAll(true);
+    setLiveStatus("전체 일정 선택됨. 패널 닫는 중");
+    setCompletedDay(null);
+    setSelectedDay(null);
+    finishClose(() => {
+      setSelectedDay(1);
+      setPlaybackRequest((request) => request + 1);
+      setLiveStatus("전체 일정 · 1일차 경로 재생 중");
+    });
+  }
+
   const playbackComplete = useCallback((day: DayNumber) => {
+    if (playingAll && day < 5) {
+      const nextDay = (day + 1) as DayNumber;
+      setSelectedDay(nextDay);
+      setPlaybackRequest((request) => request + 1);
+      setLiveStatus(`전체 일정 · ${nextDay}일차 경로 재생 중`);
+      return;
+    }
     setCompletedDay(day);
-    setLiveStatus(`${day}일차 경로 재생 완료`);
-  }, []);
+    setLiveStatus(playingAll ? "전체 일정 경로 재생 완료" : `${day}일차 경로 재생 완료`);
+  }, [playingAll]);
 
   function replay() {
     if (!selectedDay) return;
     setCompletedDay(null);
-    setLiveStatus(`${selectedDay}일차 경로 다시 재생 중`);
+    if (playingAll) {
+      setSelectedDay(1);
+      setLiveStatus("전체 일정 · 1일차 경로 다시 재생 중");
+    } else {
+      setLiveStatus(`${selectedDay}일차 경로 다시 재생 중`);
+    }
     setPlaybackRequest((request) => request + 1);
   }
 
@@ -176,8 +202,10 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
         <TripPanel
           payload={payload}
           selectedDay={selectedDay}
+          allDaysSelected={playingAll}
           state={panelClosing ? "closing" : "open"}
           focusOnOpen={focusOnOpen}
+          onSelectAll={selectAllDays}
           onSelectDay={selectDay}
           onClose={() => finishClose()}
           onRefresh={refresh}
@@ -187,7 +215,7 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
         <button ref={openButtonRef} type="button" className={styles.panelOpener} onClick={() => { setPanelOpen(true); setFocusOnOpen(true); }}>일정 패널 열기</button>
       )}
       {completedDay === selectedDay && selectedDay && (
-        <button type="button" className={styles.replay} onClick={replay} aria-label={`${selectedDay}일차 경로 다시 재생`}>↻ 재생</button>
+        <button type="button" className={styles.replay} onClick={replay} aria-label={playingAll ? "전체 일정 다시 재생" : `${selectedDay}일차 경로 다시 재생`}>↻ 재생</button>
       )}
       <p className={styles.liveStatus} role="status" aria-live="polite" aria-atomic="true">{liveStatus}</p>
     </main>

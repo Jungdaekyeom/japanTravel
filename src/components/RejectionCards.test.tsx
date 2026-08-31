@@ -11,20 +11,28 @@ afterEach(() => {
 });
 
 describe("RejectionCards", () => {
-  it("shows public rejection text and accepts the contributor's own rejection through its API", async () => {
+  it("does not render a rejection section without a pending personal rejection", () => {
+    render(
+      <RejectionCards
+        onRefresh={vi.fn(async () => {})}
+      />,
+    );
+
+    expect(screen.queryByRole("heading", { name: "최근 반려" })).not.toBeInTheDocument();
+    expect(screen.queryByText("공개된 반려가 없습니다.")).not.toBeInTheDocument();
+  });
+
+  it("accepts the contributor's own pending rejection through its API", async () => {
     const fetch = vi.fn(async () => new Response(JSON.stringify({ opinion: {} }), { status: 200 }));
     vi.stubGlobal("fetch", fetch);
     const onRefresh = vi.fn(async () => {});
     render(
       <RejectionCards
-        publicRejections={[{ authorName: "이규열", publicSummary: "교토 체류 연장", reason: "이동 시간이 부족합니다.", accepted: false }]}
         ownOpinions={[{ id: "11111111-1111-4111-8111-111111111111", targetDay: 1, body: "원문", status: "rejected", accepted: false }]}
         onRefresh={onRefresh}
       />,
     );
 
-    expect(screen.getByText("교토 체류 연장")).toBeInTheDocument();
-    expect(screen.getByText("미확인")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "반려 내용 확인" }));
 
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(

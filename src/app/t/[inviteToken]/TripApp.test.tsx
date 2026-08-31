@@ -109,9 +109,10 @@ describe("TripApp", () => {
     render(<TripApp inviteToken="invite-123" />);
 
     expect(await screen.findByRole("navigation", { name: "여행 일정" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "전체 일정" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /일차/ })).toHaveLength(5);
-    expect(within(screen.getByRole("navigation", { name: "여행 일정" })).getByText("부산·인천에서 KIX 도착 후 JR 하루카로 교토역 이동, 교토 명소 방문")).toBeVisible();
-    expect(within(screen.getByRole("navigation", { name: "여행 일정" })).getByRole("button", { name: "1일차 간사이국제공항에서 교토역. 부산·인천에서 KIX 도착 후 JR 하루카로 교토역 이동, 교토 명소 방문" })).toBeInTheDocument();
+    expect(within(screen.getByRole("navigation", { name: "여행 일정" })).getByText("부산·인천에서 KIX 도착 후 교토역 이동, 교토 명소 방문")).toBeVisible();
+    expect(within(screen.getByRole("navigation", { name: "여행 일정" })).getByRole("button", { name: "1일차 간사이국제공항에서 교토역. 부산·인천에서 KIX 도착 후 교토역 이동, 교토 명소 방문" })).toBeInTheDocument();
     expect(screen.getByText("공개 일정만 보기")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "역할 잠금 해제" })).not.toBeInTheDocument();
@@ -332,6 +333,8 @@ describe("TripApp", () => {
 
     expect(await screen.findByRole("heading", { name: "의견 남기기" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "반려 내용 확인" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "최근 반려" })).not.toBeInTheDocument();
+    expect(screen.queryByText("교토 체류 연장")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "의견 검토" })).not.toBeInTheDocument();
   });
 
