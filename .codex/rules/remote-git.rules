@@ -23,6 +23,12 @@ prefix_rule(
     decision="forbidden",
     justification="Amending commits rewrites history and is prohibited.",
 )
+# Exact argv coverage for `git commit --no-edit --amend`.
+prefix_rule(
+    pattern=["git", "commit", "--no-edit", "--amend"],
+    decision="forbidden",
+    justification="Amending commits rewrites history and is prohibited.",
+)
 prefix_rule(
     pattern=["git", "push", "--force"],
     decision="forbidden",
@@ -32,6 +38,29 @@ prefix_rule(
     pattern=["git", "push", "-f"],
     decision="forbidden",
     justification="Force-pushing rewrites remote history and is prohibited.",
+)
+# Exact argv coverage for `git push --porcelain <force-option> ...`.
+prefix_rule(
+    pattern=["git", "push", "--porcelain", "--force"],
+    decision="forbidden",
+    justification="Force-pushing rewrites remote history and is prohibited.",
+)
+prefix_rule(
+    pattern=["git", "push", "--porcelain", "-f"],
+    decision="forbidden",
+    justification="Force-pushing rewrites remote history and is prohibited.",
+)
+prefix_rule(
+    pattern=["git", "push", "--porcelain", "--force-with-lease"],
+    decision="forbidden",
+    justification="Force-pushing rewrites remote history and is prohibited.",
+)
+
+# A path override can precede any Git subcommand, so it always requires review.
+prefix_rule(
+    pattern=["git", "-C"],
+    decision="prompt",
+    justification="Path-override Git commands require explicit user approval.",
 )
 prefix_rule(
     pattern=["git", "push", "--force-with-lease"],
