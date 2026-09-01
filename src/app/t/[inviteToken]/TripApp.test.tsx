@@ -69,6 +69,47 @@ afterEach(() => {
 });
 
 describe("TripApp", () => {
+  it("starts with the itinerary panel closed while the overview map remains active without moving focus", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => json(sharedPayload)));
+
+    render(<TripApp />);
+
+    const opener = await screen.findByRole("button", { name: "일정 패널 열기" });
+    expect(screen.queryByRole("navigation", { name: "여행 일정" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("지도 선택")).toHaveTextContent("all:overview:0");
+    expect(screen.getByText("전체 5일 경로 표시 중")).toBeInTheDocument();
+    expect(document.activeElement).not.toBe(opener);
+  });
+
+  it("opens the itinerary panel on request without refreshing or starting playback, then focuses its close control", async () => {
+    const fetch = vi.fn(async () => json(sharedPayload));
+    vi.stubGlobal("fetch", fetch);
+
+    render(<TripApp />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "일정 패널 열기" }));
+
+    const close = await screen.findByRole("button", { name: "일정 패널 닫기" });
+    expect(close).toHaveFocus();
+    expect(screen.getByLabelText("지도 선택")).toHaveTextContent("all:overview:0");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("restores focus to the opener after a user closes the panel", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => json(sharedPayload)));
+
+    render(<TripApp />);
+    const opener = await screen.findByRole("button", { name: "일정 패널 열기" });
+    fireEvent.click(opener);
+    const close = await screen.findByRole("button", { name: "일정 패널 닫기" });
+    vi.useFakeTimers();
+    fireEvent.click(close);
+    await act(async () => vi.advanceTimersByTime(0));
+
+    expect(screen.getByRole("button", { name: "일정 패널 열기" })).toHaveFocus();
+    expect(screen.queryByRole("navigation", { name: "여행 일정" })).not.toBeInTheDocument();
+  });
+
   it("loads only the public trip endpoint and renders no auth or opinion entry points", async () => {
     const fetch = vi.fn(async (input: string | URL | Request) => {
       expect(String(input)).toBe("/api/trip");
@@ -78,7 +119,8 @@ describe("TripApp", () => {
 
     render(<TripApp />);
 
-    expect(await screen.findByRole("navigation", { name: "여행 일정" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "일정 패널 열기" }));
+    expect(screen.getByRole("navigation", { name: "여행 일정" })).toBeInTheDocument();
     expect(screen.queryByRole("tablist", { name: "여행자 선택" })).not.toBeInTheDocument();
     for (const name of ["정대겸", "이규열", "박준수", "한규준"]) {
       expect(screen.queryByText(name)).not.toBeInTheDocument();
@@ -95,6 +137,7 @@ describe("TripApp", () => {
 
     render(<TripApp />);
     await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: "일정 패널 열기" }));
     fireEvent.click(screen.getByRole("button", { name: /1일차/ }));
     await act(async () => vi.advanceTimersByTime(250));
     expect(screen.getByLabelText("지도 선택")).toHaveTextContent("all:1:1");
@@ -110,7 +153,8 @@ describe("TripApp", () => {
     }));
 
     render(<TripApp />);
-    await screen.findByRole("navigation", { name: "여행 일정" });
+    fireEvent.click(await screen.findByRole("button", { name: "일정 패널 열기" }));
+    expect(screen.getByRole("navigation", { name: "여행 일정" })).toBeInTheDocument();
     fireEvent.focus(window);
 
     expect(await screen.findByText("최신 데이터를 불러오지 못했습니다. 기존 일정을 표시합니다.")).toHaveAttribute("role", "alert");

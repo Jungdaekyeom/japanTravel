@@ -62,6 +62,7 @@ describe("TripApp 전체 일정 재생", () => {
   it("keeps every traveler's routes visible while all days advance from 1 through 5", async () => {
     render(<TripApp />);
     await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: "일정 패널 열기" }));
     fireEvent.click(screen.getByRole("button", { name: "전체 일정" }));
     await act(async () => vi.advanceTimersByTime(0));
 

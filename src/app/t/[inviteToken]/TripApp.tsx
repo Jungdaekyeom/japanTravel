@@ -23,7 +23,7 @@ function MobileTripApp() {
   const reducedMotion = useMedia("(prefers-reduced-motion: reduce)");
   const [payload, setPayload] = useState<SharedTripPayload | null>(null);
   const [loadError, setLoadError] = useState("");
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(false);
   const [panelClosing, setPanelClosing] = useState(false);
   const [focusOnOpen, setFocusOnOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState<DayNumber | null>(null);
@@ -33,6 +33,7 @@ function MobileTripApp() {
   const [liveStatus, setLiveStatus] = useState("전체 5일 경로 표시 중");
   const closeTimer = useRef<number | null>(null);
   const openButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreOpenerFocus = useRef(false);
   const refreshController = useRef<AbortController | null>(null);
 
   const refresh = useCallback(async () => {
@@ -83,12 +84,16 @@ function MobileTripApp() {
   }, [refresh]);
 
   useEffect(() => {
-    if (!panelOpen && !panelClosing) openButtonRef.current?.focus();
+    if (!panelOpen && !panelClosing && restoreOpenerFocus.current) {
+      restoreOpenerFocus.current = false;
+      openButtonRef.current?.focus();
+    }
   }, [panelClosing, panelOpen]);
 
-  function finishClose(afterClose?: () => void) {
+  function finishClose(afterClose?: () => void, shouldRestoreOpenerFocus = false) {
     setPanelClosing(true);
     setFocusOnOpen(false);
+    restoreOpenerFocus.current = shouldRestoreOpenerFocus;
     if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
     closeTimer.current = window.setTimeout(() => {
       setPanelOpen(false);
@@ -167,7 +172,7 @@ function MobileTripApp() {
           focusOnOpen={focusOnOpen}
           onSelectAll={selectAllDays}
           onSelectDay={selectDay}
-          onClose={() => finishClose()}
+          onClose={() => finishClose(undefined, true)}
         />
       )}
       {!panelOpen && !panelClosing && (
