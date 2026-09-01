@@ -13,6 +13,7 @@ const motionState = vi.hoisted(() => ({
     onComplete?: () => void;
   }>,
 }));
+const routeFixtureState = vi.hoisted(() => ({ nonDayFiveUenoNrtFocus: false }));
 
 vi.mock("motion/react", () => ({
   animate: (_from: number, _to: number, options: { onUpdate?: (value: number) => void; onComplete?: () => void }) => {
@@ -21,6 +22,18 @@ vi.mock("motion/react", () => ({
     return { stop() { animation.stopped = true; } };
   },
 }));
+
+vi.mock("./placeholder-routes", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./placeholder-routes")>();
+  return {
+    ...actual,
+    buildDayLayers: (...args: Parameters<typeof actual.buildDayLayers>) => {
+      const layers = actual.buildDayLayers(...args);
+      if (!routeFixtureState.nonDayFiveUenoNrtFocus || args[0] !== 4) return layers;
+      return { ...layers, stages: [{ durationMs: 1000, focusPinKeys: ["ueno", "nrt"] }] };
+    },
+  };
+});
 
 import { GoogleTripMap } from "./GoogleTripMap";
 import { FULL_ROUTE_LINES, FULL_ROUTE_PINS } from "./placeholder-routes";
@@ -33,10 +46,21 @@ const MAP_DIMENSIONS = [
   [767, 1024],
 ] as const;
 const OVERVIEW_ROUTE_BOUNDS = { east: 140.3929, north: 37.586560000000006, south: 34.3904, west: 126.4407 };
-const DAY_FIVE_FOCUSES: readonly { keys: readonly string[]; padding: number }[] = [
-  { keys: ["ueno", "nrt"], padding: 48 },
-  { keys: ["nrt", "busan", "incheon"], padding: 54 },
-  { keys: ["busan", "incheon", "mandeok", "suwon", "icheon"], padding: 54 },
+const AUTHORED_FOCUS_STAGES = [
+  { day: 1, stageIndex: 0, keys: ["mandeok", "busan"], padding: 54 },
+  { day: 1, stageIndex: 2, keys: ["suwon", "icheon", "incheon"], padding: 54 },
+  { day: 1, stageIndex: 4, keys: ["busan", "incheon", "kix"], padding: 54 },
+  { day: 1, stageIndex: 6, keys: ["kix", "kyoto"], padding: 54 },
+  { day: 1, stageIndex: 8, keys: ["kyoto", "kiyomizu", "kinkaku", "ginkaku"], padding: 54 },
+  { day: 2, stageIndex: 0, keys: ["kyoto", "odawara"], padding: 54 },
+  { day: 2, stageIndex: 2, keys: ["odawara", "hakone"], padding: 54 },
+  { day: 3, stageIndex: 0, keys: ["hakone", "odawara"], padding: 54 },
+  { day: 3, stageIndex: 2, keys: ["odawara", "ueno"], padding: 54 },
+  { day: 3, stageIndex: 4, keys: ["ueno", "shinjuku", "shibuya"], padding: 54 },
+  { day: 4, stageIndex: 0, keys: ["akihabara", "sensoji", "ginza"], padding: 54 },
+  { day: 5, stageIndex: 0, keys: ["ueno", "nrt"], padding: 48 },
+  { day: 5, stageIndex: 2, keys: ["nrt", "busan", "incheon"], padding: 54 },
+  { day: 5, stageIndex: 4, keys: ["busan", "incheon", "mandeok", "suwon", "icheon"], padding: 54 },
 ] as const;
 
 const DAY_RENDER_EXPECTATIONS = [
@@ -218,6 +242,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  routeFixtureState.nonDayFiveUenoNrtFocus = false;
   FakeMap.instances = [];
   FakeMap.viewport = { width: 390, height: 844 };
   FakePolyline.instances = [];
@@ -243,7 +268,9 @@ function expectedFocusCamera(keys: readonly string[], width: number, height: num
     Math.log2((width - padding * 2) / 256 / longitudeFraction),
     Math.log2((height - padding * 2) / 256 / latitudeFraction),
   ));
-  return { center: { lat: (north + south) / 2, lng: (east + west) / 2 }, zoom };
+  const centerY = (mercatorY(north) + mercatorY(south)) / 2;
+  const centerLatitude = (2 * Math.atan(Math.exp(centerY)) - Math.PI / 2) * 180 / Math.PI;
+  return { center: { lat: centerLatitude, lng: (east + west) / 2 }, zoom };
 }
 
 function project(point: { lat: number; lng: number }, camera: { center: google.maps.LatLngLiteral; zoom: number }, width: number, height: number) {
@@ -457,32 +484,64 @@ describe("GoogleTripMap", () => {
     expect(map.moveCamera).not.toHaveBeenCalled();
   });
 
-  it.each(MAP_DIMENSIONS)("fits every Day 5 focus endpoint in the viewport at %ix%i without a motion bounds jump", async (width, height) => {
+  it.each(MAP_DIMENSIONS)("fits all 14 authored focus endpoints in the viewport at %ix%i with literal padding and no motion bounds jump", async (width, height) => {
     FakeMap.viewport = { width, height };
+    expect(AUTHORED_FOCUS_STAGES).toHaveLength(14);
+    expect(AUTHORED_FOCUS_STAGES.filter(({ padding }) => padding === 48)).toEqual([
+      { day: 5, stageIndex: 0, keys: ["ueno", "nrt"], padding: 48 },
+    ]);
+
+    for (const day of [1, 2, 3, 4, 5] as const) {
+      const dayFocuses = AUTHORED_FOCUS_STAGES.filter((focus) => focus.day === day);
+      const finalFocusStage = dayFocuses.at(-1)?.stageIndex;
+      if (finalFocusStage === undefined) throw new Error(`Day ${day} has no literal focus stage`);
+      const motion = installMotion();
+      installGoogleBoundary();
+      const { unmount } = render(<GoogleTripMap selectedTravelerId={null} selectedDay={day} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+
+      await waitFor(() => expect(motion.pending()).toBe(1));
+      const map = FakeMap.instances.at(-1);
+      if (!map) throw new Error(`Day ${day} did not create a map`);
+      for (let stageIndex = 0; stageIndex <= finalFocusStage; stageIndex += 1) {
+        const focus = dayFocuses.find((candidate) => candidate.stageIndex === stageIndex);
+        if (focus) {
+          const focusKeys: readonly string[] = focus.keys;
+          motion.update(1);
+          const camera = map.moveCamera.mock.calls.at(-1)?.[0];
+          if (!camera) throw new Error(`Day ${day} focus ${stageIndex} did not move the camera`);
+          const expected = expectedFocusCamera(focusKeys, width, height, focus.padding);
+          expect(camera.center).toEqual(expected.center);
+          expect(camera.zoom).toBeCloseTo(expected.zoom, 8);
+          for (const pin of FULL_ROUTE_PINS.filter(({ key }) => focusKeys.includes(key))) {
+            const screenPoint = project(pin.position, camera, width, height);
+            const context = `Day ${day} stage ${stageIndex} ${focus.keys.join(",")} pin ${pin.key}`;
+            expect(screenPoint.x, context).toBeGreaterThanOrEqual(focus.padding - 0.001);
+            expect(screenPoint.x, context).toBeLessThanOrEqual(width - focus.padding + 0.001);
+            expect(screenPoint.y, context).toBeGreaterThanOrEqual(focus.padding - 0.001);
+            expect(screenPoint.y, context).toBeLessThanOrEqual(height - focus.padding + 0.001);
+          }
+        }
+        if (stageIndex < finalFocusStage) motion.complete();
+      }
+      expect(map.fitBounds).not.toHaveBeenCalled();
+      unmount();
+    }
+  });
+
+  it("uses ordinary padding for an ordered Ueno-Narita focus outside Day 5", async () => {
+    routeFixtureState.nonDayFiveUenoNrtFocus = true;
     const motion = installMotion();
     installGoogleBoundary();
-    render(<GoogleTripMap selectedTravelerId={null} selectedDay={5} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={4} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
 
     await waitFor(() => expect(motion.pending()).toBe(1));
-    const map = FakeMap.instances[0];
-    for (const [index, focus] of DAY_FIVE_FOCUSES.entries()) {
-      motion.update(1);
-      const camera = map.moveCamera.mock.calls.at(-1)?.[0];
-      if (!camera) throw new Error("Day 5 focus did not move the camera");
-      const expected = expectedFocusCamera(focus.keys, width, height, focus.padding);
-      expect(camera.center).toEqual(expected.center);
-      expect(camera.zoom).toBeCloseTo(expected.zoom, 8);
-      for (const pin of FULL_ROUTE_PINS.filter(({ key }) => focus.keys.includes(key))) {
-        const screenPoint = project(pin.position, camera, width, height);
-        expect(screenPoint.x).toBeGreaterThanOrEqual(focus.padding - 0.001);
-        expect(screenPoint.x).toBeLessThanOrEqual(width - focus.padding + 0.001);
-        expect(screenPoint.y).toBeGreaterThanOrEqual(focus.padding - 0.001);
-        expect(screenPoint.y).toBeLessThanOrEqual(height - focus.padding + 0.001);
-      }
-      motion.complete();
-      if (index < DAY_FIVE_FOCUSES.length - 1) motion.complete();
-    }
-    expect(map.fitBounds).not.toHaveBeenCalled();
+    motion.update(1);
+    const camera = FakeMap.instances[0].moveCamera.mock.calls.at(-1)?.[0];
+    if (!camera) throw new Error("Non-Day-5 Ueno-Narita focus did not move the camera");
+    const expected = expectedFocusCamera(["ueno", "nrt"], 390, 844, 54);
+    expect(camera.center).toEqual(expected.center);
+    expect(camera.zoom).toBeCloseTo(expected.zoom, 8);
+    expect(FakeMap.instances[0].fitBounds).not.toHaveBeenCalled();
   });
 
   it("draws final rail geometry on Google Maps and shows attribution only while it is visible", async () => {
@@ -657,8 +716,10 @@ describe("GoogleTripMap", () => {
     for (let index = 0; index < 6; index += 1) motion.complete();
     motion.update(0.5);
     const midwayToKix = map.moveCamera.mock.calls.at(-1)![0];
-    expect(midwayToKix.center.lat).toBeCloseTo(35.329);
-    expect(midwayToKix.center.lng).toBeCloseTo(133.172);
+    const flightFocus = expectedFocusCamera(["busan", "incheon", "kix"], 390, 844, 54);
+    const kyotoFocus = expectedFocusCamera(["kix", "kyoto"], 390, 844, 54);
+    expect(midwayToKix.center.lat).toBeCloseTo((flightFocus.center.lat + kyotoFocus.center.lat) / 2, 8);
+    expect(midwayToKix.center.lng).toBeCloseTo((flightFocus.center.lng + kyotoFocus.center.lng) / 2, 8);
     expect(midwayToKix.center.lng).toBeGreaterThan(130.84235);
     expect(midwayToKix.center.lng).toBeLessThan(135.5013835);
     expect(map.fitBounds).not.toHaveBeenCalled();
@@ -702,7 +763,7 @@ describe("GoogleTripMap", () => {
     for (let index = 0; index < 4; index += 1) motion.complete();
 
     motion.update(1);
-    expect(map.moveCamera.mock.calls.at(-1)?.[0].center).toEqual({ lat: 35.685885, lng: 139.738775 });
+    expect(map.moveCamera.mock.calls.at(-1)?.[0].center).toEqual(expectedFocusCamera(["ueno", "shinjuku", "shibuya"], 390, 844, 54).center);
     expect(map.fitBounds).not.toHaveBeenCalled();
   });
 

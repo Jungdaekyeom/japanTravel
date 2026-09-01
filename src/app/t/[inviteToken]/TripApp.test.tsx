@@ -110,6 +110,36 @@ describe("TripApp", () => {
     expect(screen.queryByRole("navigation", { name: "여행 일정" })).not.toBeInTheDocument();
   });
 
+  it("focuses the close control when reopening after a day selection", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => json(sharedPayload)));
+
+    render(<TripApp />);
+    fireEvent.click(await screen.findByRole("button", { name: "일정 패널 열기" }));
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole("button", { name: /1일차/ }));
+    await act(async () => vi.advanceTimersByTime(0));
+
+    fireEvent.click(screen.getByRole("button", { name: "일정 패널 열기" }));
+
+    expect(screen.getByRole("button", { name: "일정 패널 닫기" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: /^1일차 간사이국제공항/ })).toHaveAttribute("aria-current", "true");
+  });
+
+  it("focuses the close control when reopening after an all-days selection", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => json(sharedPayload)));
+
+    render(<TripApp />);
+    fireEvent.click(await screen.findByRole("button", { name: "일정 패널 열기" }));
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole("button", { name: "전체 일정" }));
+    await act(async () => vi.advanceTimersByTime(0));
+
+    fireEvent.click(screen.getByRole("button", { name: "일정 패널 열기" }));
+
+    expect(screen.getByRole("button", { name: "일정 패널 닫기" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "전체 일정" })).toHaveAttribute("aria-current", "true");
+  });
+
   it("loads only the public trip endpoint and renders no auth or opinion entry points", async () => {
     const fetch = vi.fn(async (input: string | URL | Request) => {
       expect(String(input)).toBe("/api/trip");

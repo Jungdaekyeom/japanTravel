@@ -211,7 +211,7 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
               center: currentMap.getCenter()?.toJSON() ?? DEFAULT_CAMERA.center,
               zoom: currentMap.getZoom() ?? DEFAULT_CAMERA.zoom,
             },
-            to: cameraForPins(currentMap, state.focusPinKeys),
+            to: cameraForPins(currentMap, selectedDay, state.focusPinKeys),
           };
         }
         if (cameraTransition && state.focusProgress !== undefined) {
@@ -339,11 +339,11 @@ function fitDay(map: google.maps.Map, day: DayNumber, routeLines: readonly MapLi
   map.setCenter(centerOf(nextBounds));
 }
 
-function cameraForPins(map: google.maps.Map, pinKeys: readonly string[]): CameraFrame {
+function cameraForPins(map: google.maps.Map, day: DayNumber, pinKeys: readonly string[]): CameraFrame {
   const selectedPins = FULL_ROUTE_PINS.filter((pin) => pinKeys.includes(pin.key));
   const nextBounds = bounds(selectedPins.map((pin) => pin.position));
   const element = map.getDiv();
-  const padding = pinKeys.length === 2 && pinKeys.includes("ueno") && pinKeys.includes("nrt") ? 48 : CAMERA_PADDING;
+  const padding = day === 5 && pinKeys.length === 2 && pinKeys[0] === "ueno" && pinKeys[1] === "nrt" ? 48 : CAMERA_PADDING;
   const width = Math.max(1, (element.clientWidth || window.innerWidth) - padding * 2);
   const height = Math.max(1, (element.clientHeight || window.innerHeight) - padding * 2);
   const longitudeFraction = Math.max(Number.EPSILON, (nextBounds.east - nextBounds.west) / 360);
@@ -352,7 +352,14 @@ function cameraForPins(map: google.maps.Map, pinKeys: readonly string[]): Camera
     Math.log2(width / 256 / longitudeFraction),
     Math.log2(height / 256 / latitudeFraction),
   ));
-  return { center: centerOf(nextBounds), zoom };
+  const centerY = (mercatorY(nextBounds.north) + mercatorY(nextBounds.south)) / 2;
+  return {
+    center: {
+      lat: (2 * Math.atan(Math.exp(centerY)) - Math.PI / 2) * 180 / Math.PI,
+      lng: (nextBounds.east + nextBounds.west) / 2,
+    },
+    zoom,
+  };
 }
 
 function centerOf(value: google.maps.LatLngBoundsLiteral): google.maps.LatLngLiteral {

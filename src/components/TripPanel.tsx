@@ -17,14 +17,12 @@ type TripPanelProps = {
 };
 
 export function TripPanel({ payload, selectedDay, allDaysSelected, state, focusOnOpen, onSelectAll, onSelectDay, onClose }: TripPanelProps) {
-  const allDaysRef = useRef<HTMLButtonElement>(null);
-  const dayRefs = useRef(new Map<DayNumber, HTMLButtonElement>());
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!focusOnOpen) return;
-    (allDaysSelected ? allDaysRef.current : selectedDay ? dayRefs.current.get(selectedDay) : closeRef.current)?.focus();
-  }, [allDaysSelected, focusOnOpen, selectedDay]);
+    closeRef.current?.focus();
+  }, [focusOnOpen]);
 
   return (
     <aside className={styles.panel} data-state={state}>
@@ -34,12 +32,11 @@ export function TripPanel({ payload, selectedDay, allDaysSelected, state, focusO
           <button ref={closeRef} type="button" className={styles.iconButton} aria-label="일정 패널 닫기" onClick={onClose}>‹</button>
         </header>
         {/* 사람별 비공개 패널은 추후 별도 승인 시 이 위치에서 활성화한다. */}
-        <button ref={allDaysRef} type="button" className={`${styles.dayButton} ${styles.allDaysButton}`} aria-current={allDaysSelected ? "true" : undefined} onClick={onSelectAll}>전체 일정</button>
+        <button type="button" className={`${styles.dayButton} ${styles.allDaysButton}`} aria-current={allDaysSelected ? "true" : undefined} onClick={onSelectAll}>전체 일정</button>
         <ol className={styles.days}>
           {payload.trip.days.map((day) => (
             <li key={day.day}>
               <button
-                ref={(node) => { if (node) dayRefs.current.set(day.day, node); }}
                 type="button"
                 className={styles.dayButton}
                 aria-label={`${day.day}일차 ${day.title}. ${day.summary}`}
