@@ -1,16 +1,20 @@
 # 2026 일본 여행 지도
 
-2026년 10월 2일~6일의 오사카 입국·도쿄 출국 일정을 모바일 Google 지도 위에 보여주고, 사람별 1회용 개인 링크로 참가자 의견과 관리자 검토를 처리하는 비공개 Next.js 웹앱입니다.
+2026년 10월 2일~6일의 일본 여행 일정을 모바일 Google 지도 위에 보여주는 pnpm 모노레포입니다. **활성 공개 주소는 토큰 없는 루트 `/`**이며, 모든 사용자는 같은 공통 일정을 봅니다. 저장소 루트의 Next.js 웹과 `apps/owner`의 Android 전용 관리 앱을 함께 관리합니다.
 
-다른 컴퓨터나 새 세션에서 작업을 이어갈 때는 [세션 인계 기록](docs/SESSION_HANDOFF.md)을 먼저 읽으세요. 확정 요구사항, 현재 구현 상태, 아직 구현하지 않은 최신 논의와 재개 명령을 정리해 두었습니다.
+좌측 패널에서 전원 또는 정대겸·이규열·박준수·한규준 중 한 명을 수동 선택한 뒤 1~5일차 또는 전체 일정을 선택해 경로를 재생합니다. 여행자 선택 자체는 재생을 시작하지 않으며, 일정 선택 후에만 재생합니다.
+
+다른 컴퓨터나 새 세션에서 작업을 이어갈 때는 [세션 인계 기록](docs/SESSION_HANDOFF.md)을 먼저 읽으세요. 확정 요구사항, 현재 구현 상태, 보류 범위와 재개 명령을 정리해 두었습니다.
 
 ## 범위
 
-- 모바일(767px 이하): 1~5일차 일정, 1회 경로 애니메이션, 개인 링크 자동 인증, 의견 제출·반려 수용, 관리자 검토·철도 경로 확정
+- 모바일(767px 이하): 여행자 수동 선택, 1~5일차 또는 전체 경로 재생, Google 지도와 정적 fallback
 - 데스크톱(768px 이상): 휴대폰 접속 안내만 표시 (`/terms`, `/privacy`는 예외)
-- 관찰자: 초대 링크로 승인된 고정 일정과 사람별 최신 반려 한 건 조회
-- 참가자: 이규열·박준수·한규준의 개인 의견 제출과 본인 반려 수용
-- 관리자: 정대겸의 수동 승인·반려와 철도 경로 확정
+- 1일차·5일차: 각 여행자의 개인 출발·도착 구간과 KIX→NRT 공통 일본 구간을 함께 표시
+- 개인 출발·도착 기준: 만덕터널 인근, 이천시청, 수원시청
+- 공개 웹 제외: 의견 제출·검토, 역할별 화면, 관리 UI, 개인 토큰 진입
+- 소유자 앱: 정대겸의 지정 Android 기기에서만 의견 승인·반려와 네 철도 구간 확정을 제공한다.
+- 보존: 기존 인증·의견 API와 Supabase 데이터·migration은 삭제하지 않는다. 공개 화면에서는 호출하지 않는다.
 - 제외: GPS, 실시간 교통·운항, 오프라인/PWA, 분석, 푸시, 카카오 로그인, OpenAI/MCP
 
 ## 로컬 실행
@@ -23,23 +27,27 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-`.env.local`에는 아래 운영 절차에서 발급한 값을 직접 넣습니다. 비밀값, 개인 링크, 초대 토큰을 저장소나 로그에 남기지 마세요.
+`SUPABASE_URL`과 `SUPABASE_SECRET_KEY`는 활성 일정 API에 필수이므로 `.env.local`에 유효한 값을 설정해야 합니다. 누락되거나 Supabase에 연결할 수 없으면 `/api/trip` 요청이 실패해 일정 화면을 열 수 없습니다. Google Maps 변수는 선택 사항이며, 일정 API가 정상인 상태에서 지도 키가 없거나 지도 로딩에 실패하면 정적 일정 fallback을 사용합니다.
 
-## Supabase 설정
+로컬 앱은 `http://localhost:3000/`에서 확인합니다. `.env.local`의 값, Supabase 서버 키, 지도 키, 기존 개인 링크·토큰·쿠키를 저장소나 로그에 남기지 마세요.
 
-1. Production용 Supabase 프로젝트를 만들고 Project URL과 서버용 `sb_secret_...` secret key를 준비합니다.
-2. Supabase CLI로 프로젝트를 연결한 뒤 `supabase/migrations`의 SQL을 파일명 순서대로 적용합니다. 기존 Production에도 과거 migration을 수정하지 말고 `202608300001_personal_link_claims.sql`을 추가 적용합니다.
-3. migration은 `pgcrypto`, `pg_cron`, RLS, 브라우저 역할 권한 제거, 로그인 제한 RPC, 1회용 개인 토큰 원자적 소비·세션 생성 RPC와 만료 경로 삭제 Cron을 구성합니다. 프로젝트에서 `pg_cron` 사용 가능 여부와 매일 15:00 UTC(자정 KST/JST) 작업을 확인합니다.
-4. `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, Production 주소인 `APP_ORIGIN`, `INVITE_TOKEN`, 16자 이상의 무작위 `SESSION_PEPPER`를 `.env.local`에 설정합니다. pepper는 `openssl rand -base64 32`처럼 암호학적으로 안전하게 생성합니다.
-5. 관리자 포함 네 사람의 개인 링크를 한 번 발급합니다.
+### Android 소유자 앱
+
+`apps/owner`는 Expo SDK 57 기반 Android 앱입니다. 연결된 기기에서 개발할 때는 웹 서버를 실행한 뒤 다음 명령을 사용합니다.
 
 ```bash
-pnpm links:issue
+adb reverse tcp:3000 tcp:3000
+pnpm owner:android
 ```
 
-명령은 `/t/<INVITE_TOKEN>#join=<32바이트 base64url 토큰>` 형식의 완전한 URL 네 개를 터미널에 한 번만 출력하고 DB에는 SHA-256 토큰 해시만 저장합니다. 출력은 비밀번호 관리자 등 안전한 곳으로 즉시 옮긴 뒤 각 사람에게 따로 전달합니다. 기존 링크가 있으면 기본 실행은 중단됩니다. 쿠키 삭제·기기 변경·노출 시 `pnpm links:issue --reissue`를 실행하면 네 링크를 모두 교체하고 네 사람의 기존 로그인 세션도 폐기합니다. DB 저장과 세션 폐기가 모두 성공한 뒤에만 새 링크를 출력합니다. 교체된 링크와 폐기된 세션은 복구되지 않으므로 네 사람 모두 새 링크를 다시 열어야 합니다.
+등록 코드는 `supabase/migrations/202608310001_owner_claim.sql`을 대상 Supabase에 적용한 뒤 `pnpm owner:code`로 필요할 때만 새로 발급해 앱에 직접 붙여넣습니다. 이 명령의 출력은 비밀값이므로 URL·문서·커밋·채팅에 남기지 않습니다. 앱은 `samsung` `SM-S948N`, Android API 36 이상, `arm64-v8a` 기기에서만 서버 요청을 시작합니다. 배포용 API 주소와 APK 배포는 별도 승인 범위입니다.
 
-Production 데이터는 브라우저에서 Supabase를 직접 읽지 않습니다. Vercel 서버만 secret key를 사용합니다.
+## 현재 경로와 지도
+
+- 공통 일본 구간은 KIX 입국부터 NRT 출국까지의 5일 일정이다.
+- 개인 구간은 여행자 선택에 따라 표시한다. 정대겸은 만덕터널 인근↔김해국제공항, 이규열·박준수는 이천시청↔인천국제공항, 한규준은 수원시청↔인천국제공항을 사용한다.
+- KIX→교토, 교토→오다와라, 오다와라→도쿄, 도쿄→NRT는 공통 일본 경로다. 확정 전 철도 구간은 앱 내 근사 경로로 표시한다.
+- 날짜를 누르면 해당 일차 경로를 한 번 재생하고, 전체 일정은 1일차부터 5일차까지 순차 재생한다. 재생 완료 뒤 다시 재생할 수 있다.
 
 ## Google Maps 설정
 
@@ -48,59 +56,40 @@ Google Cloud 프로젝트에서 결제를 연결하고 다음 두 키를 분리�
 ### 브라우저 지도 키
 
 - Maps JavaScript API만 허용합니다.
-- HTTP referrer를 Production 주소(예: `https://프로젝트.vercel.app/*`)와 필요한 로컬 개발 주소로 제한합니다.
+- HTTP referrer를 Production 주소와 필요한 로컬 개발 주소로 제한합니다.
 - 키는 `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, 지도 ID는 `NEXT_PUBLIC_GOOGLE_MAP_ID`에 설정합니다.
 
 ### 서버 철도 경로 키
 
-- Routes API만 허용하고 `GOOGLE_ROUTES_API_KEY`에 설정합니다. 이 키에는 절대 `NEXT_PUBLIC_` 접두사를 붙이지 않습니다.
-- Google Place ID Finder 등으로 KIX, 교토역, 오다와라역, 도쿄역, 게이세이 우에노역, 나리타공항의 정확한 Place ID를 확인해 대응하는 `GOOGLE_PLACE_ID_*` 변수에 넣습니다.
-- 2026년 9월 7일 이후 관리자가 실제 탑승일의 출발 시각을 입력해 네 철도 구간을 확정합니다. 나리타 구간은 우에노 출발 게이세이 스카이라이너로 고정합니다.
-- 좌표는 Google 지도 위에서만 사용하며 생성 후 최대 30일 또는 2026년 10월 7일 00:00(JST) 중 이른 시각까지만 저장됩니다. 기본 Google 저작권 표시를 가리지 마세요.
+- `GOOGLE_ROUTES_API_KEY`는 서버 전용이며 절대 `NEXT_PUBLIC_` 접두사를 붙이지 않습니다.
+- 소유자 앱의 Routes API 확정 흐름에서만 `GOOGLE_PLACE_ID_*` 변수를 사용합니다. 공개 웹은 이 흐름을 호출하지 않습니다.
+- 좌표는 Google 지도 위에서만 사용하며 생성 후 최대 30일 또는 2026년 10월 7일 00:00(JST) 중 이른 시각까지만 저장합니다. 기본 Google 저작권 표시를 가리지 마세요.
 
-키 제한과 할당량은 [Google Maps API 보안 권장사항](https://developers.google.com/maps/api-security-best-practices)을 기준으로 최종 확인합니다.
-지도 화면 `/t/*`에만 [Maps JavaScript API allowlist CSP](https://developers.google.com/maps/documentation/javascript/content-security-policy)의 Google 도메인, `blob:`과 `unsafe-eval`을 허용합니다. API·약관·개인정보·robots와 그 밖의 경로에는 `unsafe-eval`을 허용하지 않습니다.
+키 제한과 할당량은 [Google Maps API 보안 권장사항](https://developers.google.com/maps/api-security-best-practices)을 기준으로 최종 확인합니다. 지도 화면에는 [Maps JavaScript API allowlist CSP](https://developers.google.com/maps/documentation/javascript/content-security-policy)의 Google 도메인, `blob:`과 `unsafe-eval`을 허용합니다. 서버 비밀값은 브라우저에 노출하지 않습니다.
 
-## 초대와 서버 비밀값
+## 소유자 앱과 보존 백엔드
 
-- `INVITE_TOKEN`은 URL에 안전한 32바이트 이상 무작위 값으로 생성합니다. 공유 주소는 `/t/<INVITE_TOKEN>`입니다.
-- 관리자 포함 지정된 네 사람에게는 `/t/<INVITE_TOKEN>#join=<개인 토큰>` 링크를 각각 전달합니다. `#join` fragment는 GET·referrer·서버 접근 로그로 전송되지 않고, 브라우저가 JSON POST로 제출한 직후 성공 여부와 관계없이 주소에서 제거합니다.
-- 개인 링크는 처음 연 기기에서 한 번만 소비되어 2026년 10월 13일 23:59:59(JST)까지 유효한 HttpOnly 세션 쿠키를 만듭니다. 같은 카카오 인앱 브라우저의 활성 세션에서 링크를 다시 열면 기존 역할을 유지합니다.
-- 소비된 개인 링크를 다른 기기로 전달해도 관찰자로만 접속합니다. 쿠키를 지웠거나 다른 기기에서 역할이 필요하면 관리자가 링크를 재발급해야 합니다. 일반 초대 링크는 언제나 관찰자용입니다.
-- `SESSION_PEPPER`, Supabase 서버 키, Routes 키, Place ID는 서버 전용입니다.
-- 의견 원문, 개인 토큰, 쿠키와 초대 토큰을 애플리케이션 로그에 추가하지 마세요.
+공개 웹에는 관리 진입점이나 역할별 화면이 없습니다. 소유자 앱만 URL 없는 일회용 코드로 세션을 등록하고 기존 의견·경로 API를 사용합니다. 일반 개인 링크와 역할별 웹 흐름은 호환성을 위해 보존된 **dormant/legacy** 범위이며 공개 접속 방법으로 안내하지 않습니다.
 
-## Vercel 배포
+`SESSION_PEPPER`, Supabase 서버 키, Routes 키와 Place ID는 서버 전용입니다. 쿠키와 기존 개인 토큰을 포함한 비밀값은 저장소·문서·로그에 남기거나 브라우저 공개 번들에 포함하지 마세요. 의견 원문도 애플리케이션 로그에 추가하지 마세요.
 
-1. Git 저장소를 Vercel에 가져오고 Production Branch를 `main`으로 둡니다. 프레임워크와 Node 22는 `vercel.json`과 `package.json`에서 감지됩니다.
-2. 위 환경변수를 Vercel Production에 등록합니다. Preview에는 별도 테스트 Supabase와 별도 제한 키를 쓰거나 비밀값을 넣지 않습니다.
-3. Production 배포 후 실제 도메인을 브라우저 지도 키의 HTTP referrer에 추가하고, 필요하면 기본 `*.vercel.app` 주소도 유지합니다.
-4. 커스텀 도메인은 필요할 때만 추가합니다. `robots.txt`, meta robots와 `X-Robots-Tag`가 검색 색인을 차단하지만 초대 링크 자체가 인증 수단은 아니므로 링크도 비밀처럼 취급합니다.
+## 브랜치와 배포 상태
 
-이 저장소 작업은 Vercel 배포나 외부 서비스 변경을 자동으로 수행하지 않습니다.
+- `production`은 공개 복구 기준 커밋 `d6e6290`을 가리킨다.
+- `develop`은 현재 로컬 기능 개발 브랜치다.
+- 이 작업은 원격 push나 Vercel 배포를 수행하지 않는다. 배포·외부 서비스 변경은 명시적 승인 후에만 한다.
 
 ## 검증
 
 ```bash
-pnpm lint
-pnpm typecheck
 pnpm test --run
+pnpm typecheck
+pnpm lint
 pnpm build
-pnpm exec playwright install chromium
 pnpm exec playwright test
+pnpm owner:test
+pnpm owner:typecheck
+pnpm owner:lint
 ```
 
-Playwright는 Production 백도어 없이 브라우저 네트워크 요청만 가로채 관찰자→참가자 제출→관리자 반려→당사자 수용과 데스크톱 차단을 검증합니다.
-
-Production 배포에서는 모바일 기기로 다음 항목을 수동 점검합니다.
-
-- 초대 링크의 관찰자 화면과 사람별 최신 반려 한 건만 노출되는지
-- 네 개인 링크가 첫 기기에서만 올바른 역할을 만들고, URL fragment가 즉시 제거되며 재전달·재사용 시 관찰자로 남는지
-- 날짜를 누르면 패널이 접히고 경로가 한 번 재생되며 다시 재생할 수 있는지
-- Google 지도·마커·저작권 표시와 지도 실패 시 정적 일정·재시도 화면
-- 참가자 제출, 관리자 승인·반려, 당사자만 가능한 수용, 수용 전 재제출 차단
-- 2026년 9월 7일 전 경로 확정 차단, 이후 네 철도 구간 확정, 실패 시 점선 유지
-- 1280px 데스크톱 차단과 `/terms`, `/privacy`, `/robots.txt` 접근
-- 응답의 CSP, `Referrer-Policy: strict-origin`, noindex 헤더와 HTTPS 쿠키 유지
-
-여행 운영이 끝나면 Supabase의 참가자·세션·로그인 시도·의견 데이터를 삭제하고, Vercel 비밀값과 Google 키를 폐기하거나 회전하며 초대 링크 배포를 중단합니다.
+테스트는 fixture와 네트워크 가로채기를 사용하며 실제 외부 API나 배포를 호출하지 않습니다. `/privacy`와 `/terms`는 이번 공개 경로 변경과 무관하며 그대로 유지합니다.

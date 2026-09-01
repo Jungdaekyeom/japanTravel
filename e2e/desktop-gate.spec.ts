@@ -8,7 +8,7 @@ test("desktop visitors see only the phone gate", async ({ page }) => {
     await route.abort();
   });
 
-  await page.goto("/t/e2e-invite-token");
+  await page.goto("/");
 
   await expect(page.getByText("휴대폰에서 접속해 주세요")).toBeVisible();
   await expect(page.getByRole("navigation", { name: "여행 일정" })).toHaveCount(0);
@@ -36,7 +36,7 @@ test("legal pages stay available on desktop and link to Google policies", async 
 });
 
 test("responses and metadata prevent indexing without blocking Google Maps", async ({ page }) => {
-  const response = await page.goto("/t/e2e-invite-token");
+  const response = await page.goto("/");
   const policy = response?.headers()["content-security-policy"] ?? "";
   expect(response?.headers()["referrer-policy"]).toBe("strict-origin");
   expect(response?.headers()["x-robots-tag"]).toContain("noindex");

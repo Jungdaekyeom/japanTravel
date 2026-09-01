@@ -12,10 +12,10 @@ export const finalizeRailRouteInputSchema = z.object({
   naritaRailChoice: z.enum(["skyliner"]).optional(),
 }).strict();
 
-const FINALIZATION_OPENS_AT = new Date("2026-09-06T15:00:00.000Z");
-const CACHE_HARD_EXPIRY = new Date("2026-10-06T15:00:00.000Z");
+export const FINALIZATION_OPENS_AT = new Date("2026-09-06T15:00:00.000Z");
+export const FINALIZATION_CLOSES_AT = new Date("2026-10-06T15:00:00.000Z");
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-const ROUTE_TRIP_DATES: Record<RouteSegmentKey, string> = {
+export const ROUTE_TRIP_DATES: Record<RouteSegmentKey, string> = {
   "kix-kyoto": "2026-10-02",
   "kyoto-odawara": "2026-10-03",
   "odawara-tokyo": "2026-10-04",
@@ -38,7 +38,7 @@ export class RouteFinalizationError extends Error {
 }
 
 export function routeGeometryExpiry(createdAt: Date) {
-  return new Date(Math.min(createdAt.getTime() + THIRTY_DAYS_MS, CACHE_HARD_EXPIRY.getTime()));
+  return new Date(Math.min(createdAt.getTime() + THIRTY_DAYS_MS, FINALIZATION_CLOSES_AT.getTime()));
 }
 
 function tokyoCalendarDate(value: string) {

@@ -3,6 +3,47 @@ import { describe, expect, it } from "vitest";
 import { InMemoryTripRepository } from "./memory";
 
 describe("InMemoryTripRepository", () => {
+  it("atomically replaces every owner session when the owner token is claimed once", async () => {
+    const createdAt = new Date("2026-08-31T00:00:00.000Z");
+    const participant = (id: string, role: "admin" | "contributor") => ({
+      id,
+      name: id,
+      birthYear: 1993,
+      departureCity: "부산" as const,
+      role,
+      codeSalt: "salt",
+      codeHash: "hash",
+      createdAt,
+    });
+    const repository = new InMemoryTripRepository({
+      participants: [participant("daekyeom", "admin"), participant("gyuyeol", "contributor")],
+      sessions: [
+        { id: "old-owner-1", participantId: "daekyeom", tokenHash: "old-owner-hash-1", createdAt, expiresAt: new Date("2026-10-01T00:00:00.000Z") },
+        { id: "old-owner-2", participantId: "daekyeom", tokenHash: "old-owner-hash-2", createdAt, expiresAt: new Date("2026-10-01T00:00:00.000Z") },
+        { id: "contributor", participantId: "gyuyeol", tokenHash: "contributor-hash", createdAt, expiresAt: new Date("2026-10-01T00:00:00.000Z") },
+      ],
+      claimTokens: [
+        { participantId: "daekyeom", tokenHash: "owner-claim-hash", issuedAt: createdAt, consumedAt: null },
+        { participantId: "gyuyeol", tokenHash: "contributor-claim-hash", issuedAt: createdAt, consumedAt: null },
+      ],
+    } as never);
+    const session = {
+      id: "new-owner",
+      tokenHash: "new-owner-hash",
+      createdAt,
+      expiresAt: new Date("2026-10-13T14:59:59.000Z"),
+    };
+
+    expect(repository.claimOwnerToken).toBeTypeOf("function");
+    await expect(repository.claimOwnerToken("owner-claim-hash", session)).resolves.toEqual({ participantId: "daekyeom", role: "admin" });
+    await expect(repository.claimOwnerToken("owner-claim-hash", { ...session, id: "replay", tokenHash: "replay-hash" })).resolves.toBeNull();
+    await expect(repository.claimOwnerToken("contributor-claim-hash", { ...session, id: "wrong", tokenHash: "wrong-hash" })).resolves.toBeNull();
+    await expect(repository.findSessionByTokenHash("old-owner-hash-1")).resolves.toBeNull();
+    await expect(repository.findSessionByTokenHash("old-owner-hash-2")).resolves.toBeNull();
+    await expect(repository.findSessionByTokenHash("new-owner-hash")).resolves.toMatchObject({ participantId: "daekyeom" });
+    await expect(repository.findSessionByTokenHash("contributor-hash")).resolves.toMatchObject({ participantId: "gyuyeol" });
+  });
+
   it("atomically consumes a personal token only once", async () => {
     const repository = new InMemoryTripRepository({
       participants: [{

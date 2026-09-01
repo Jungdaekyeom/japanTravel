@@ -10,8 +10,11 @@ const personalLinkEnvSchema = supabaseEnvSchema.extend({
   INVITE_TOKEN: z.string().min(1),
 });
 
-const serverEnvSchema = supabaseEnvSchema.extend({
+const sessionEnvSchema = supabaseEnvSchema.extend({
   SESSION_PEPPER: z.string().min(16),
+});
+
+const serverEnvSchema = sessionEnvSchema.extend({
   INVITE_TOKEN: z.string().min(1),
 });
 
@@ -26,12 +29,26 @@ const googleRoutesEnvSchema = z.object({
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
+export type SessionEnv = z.infer<typeof sessionEnvSchema>;
+export type SupabaseEnv = z.infer<typeof supabaseEnvSchema>;
 export type PersonalLinkEnv = z.infer<typeof personalLinkEnvSchema>;
 export type GoogleRoutesEnv = z.infer<typeof googleRoutesEnvSchema>;
+
+export function getSupabaseEnv(): SupabaseEnv {
+  const parsed = supabaseEnvSchema.safeParse(process.env);
+  if (!parsed.success) throw new Error("Missing required Supabase environment variables");
+  return parsed.data;
+}
 
 export function getServerEnv(): ServerEnv {
   const parsed = serverEnvSchema.safeParse(process.env);
   if (!parsed.success) throw new Error("Missing required server environment variables");
+  return parsed.data;
+}
+
+export function getSessionEnv(): SessionEnv {
+  const parsed = sessionEnvSchema.safeParse(process.env);
+  if (!parsed.success) throw new Error("Missing required session environment variables");
   return parsed.data;
 }
 

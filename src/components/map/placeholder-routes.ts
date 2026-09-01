@@ -1,7 +1,9 @@
 import { PUBLIC_TRIP_DEFINITION, type DayNumber, type PlaceKey, type PublicRailRoute } from "../../trip/public";
+import type { TravelerId } from "../../trip/travelers";
 import type { PlaybackStage } from "./animation";
 
 export type Coordinate = { lat: number; lng: number };
+type TravelerScope = readonly TravelerId[] | null;
 export type MapLine = {
   key: string;
   kind: "car" | "flight" | "rail" | "connector";
@@ -13,8 +15,9 @@ export type MapLine = {
   label?: "경로 확정 전" | "철도 이동";
   transportLabel?: string;
   googleDerived?: true;
+  travelerIds: TravelerScope;
 };
-export type MapPin = { key: string; label: string; position: Coordinate };
+export type MapPin = { key: string; label: string; position: Coordinate; travelerIds: TravelerScope };
 export type DayLayers = { lines: readonly MapLine[]; pins: readonly MapPin[]; stages: readonly PlaybackStage[] };
 const CAMERA_SETTLE_MS = 1000;
 export type RouteSchedule = { departureAt: string | null; arrivalAt: string | null };
@@ -147,25 +150,30 @@ const ICHEON_ICN_PATH = [
   ...SUWON_ICN_PATH.slice(1),
 ] as const;
 
-const rail = (key: string, pinKeys: readonly [PlaceKey, PlaceKey], path: readonly Coordinate[], transportLabel: string, color: string, outlineColor: string): MapLine => ({ key, kind: "rail", color, outlineColor, pinKeys, path, dashed: true, label: "경로 확정 전", transportLabel });
+const DAEKYEOM = ["daekyeom"] as const;
+const INCHEON_TRAVELERS = ["gyuyeol", "junsu", "gyujun"] as const;
+const ICHEON_TRAVELERS = ["gyuyeol", "junsu"] as const;
+const GYUJUN = ["gyujun"] as const;
+
+const rail = (key: string, pinKeys: readonly [PlaceKey, PlaceKey], path: readonly Coordinate[], transportLabel: string, color: string, outlineColor: string): MapLine => ({ key, kind: "rail", color, outlineColor, pinKeys, path, dashed: true, label: "경로 확정 전", transportLabel, travelerIds: null });
 
 export const FULL_ROUTE_LINES: readonly MapLine[] = [
-  { key: "mandeok-pus", kind: "car", color: "#00B84A", outlineColor: "#007A32", pinKeys: ["mandeok", "busan"], path: MANDEOK_PUS_PATH, dashed: false },
-  { key: "suwon-icn", kind: "car", color: "#00B84A", outlineColor: "#007A32", pinKeys: ["suwon", "incheon"], path: SUWON_ICN_PATH, dashed: false },
-  { key: "icheon-icn", kind: "car", color: "#00B84A", outlineColor: "#007A32", pinKeys: ["icheon", "incheon"], path: ICHEON_ICN_PATH, dashed: false },
-  { key: "pus-kix", kind: "flight", color: "#2563EB", pinKeys: ["busan", "kix"], path: curve(place("busan"), place("kix"), 1.1), dashed: false },
-  { key: "icn-kix", kind: "flight", color: "#2563EB", pinKeys: ["incheon", "kix"], path: curve(place("incheon"), place("kix"), 1.45), dashed: false },
+  { key: "mandeok-pus", kind: "car", color: "#00B84A", outlineColor: "#007A32", pinKeys: ["mandeok", "busan"], path: MANDEOK_PUS_PATH, dashed: false, travelerIds: DAEKYEOM },
+  { key: "suwon-icn", kind: "car", color: "#00B84A", outlineColor: "#007A32", pinKeys: ["suwon", "incheon"], path: SUWON_ICN_PATH, dashed: false, travelerIds: GYUJUN },
+  { key: "icheon-icn", kind: "car", color: "#00B84A", outlineColor: "#007A32", pinKeys: ["icheon", "incheon"], path: ICHEON_ICN_PATH, dashed: false, travelerIds: ICHEON_TRAVELERS },
+  { key: "pus-kix", kind: "flight", color: "#2563EB", pinKeys: ["busan", "kix"], path: curve(place("busan"), place("kix"), 1.1), dashed: false, travelerIds: DAEKYEOM },
+  { key: "icn-kix", kind: "flight", color: "#2563EB", pinKeys: ["incheon", "kix"], path: curve(place("incheon"), place("kix"), 1.45), dashed: false, travelerIds: INCHEON_TRAVELERS },
   rail("kix-kyoto", ["kix", "kyoto"], KIX_KYOTO_PATH, "JR 하루카", "#005DCF", "#16427B"),
   rail("kyoto-odawara", ["kyoto", "odawara"], KYOTO_ODAWARA_PATH, "도카이도 신칸센", "#004DA1", "#0D355F"),
-  { key: "odawara-hakone", kind: "connector", color: "#E85216", outlineColor: "#8B4222", pinKeys: ["odawara", "hakone"], path: ODAWARA_HAKONE_PATH, dashed: true, transportLabel: "하코네 등산선" },
-  { key: "hakone-odawara", kind: "connector", color: "#E85216", outlineColor: "#8B4222", pinKeys: ["hakone", "odawara"], path: [...ODAWARA_HAKONE_PATH].reverse(), dashed: true, transportLabel: "하코네 등산선" },
+  { key: "odawara-hakone", kind: "connector", color: "#E85216", outlineColor: "#8B4222", pinKeys: ["odawara", "hakone"], path: ODAWARA_HAKONE_PATH, dashed: true, transportLabel: "하코네 등산선", travelerIds: null },
+  { key: "hakone-odawara", kind: "connector", color: "#E85216", outlineColor: "#8B4222", pinKeys: ["hakone", "odawara"], path: [...ODAWARA_HAKONE_PATH].reverse(), dashed: true, transportLabel: "하코네 등산선", travelerIds: null },
   rail("odawara-tokyo", ["odawara", "ueno"], ODAWARA_UENO_PATH, "도카이도 본선", "#F18016", "#995A22"),
   rail("tokyo-narita", ["ueno", "nrt"], UENO_NARITA_PATH, "게이세이 스카이라이너", "#1B4786", "#1D3053"),
-  { key: "nrt-pus", kind: "flight", color: "#2563EB", pinKeys: ["nrt", "busan"], path: curve(place("nrt"), place("busan"), 1.1), dashed: false },
-  { key: "nrt-icn", kind: "flight", color: "#2563EB", pinKeys: ["nrt", "incheon"], path: curve(place("nrt"), place("incheon"), 1.45), dashed: false },
-  { key: "pus-mandeok", kind: "car", color: "#00B84A", outlineColor: "#007A32", pinKeys: ["busan", "mandeok"], path: [...MANDEOK_PUS_PATH].reverse(), dashed: false },
-  { key: "icn-suwon", kind: "car", color: "#00B84A", outlineColor: "#007A32", pinKeys: ["incheon", "suwon"], path: [...SUWON_ICN_PATH].reverse(), dashed: false },
-  { key: "icn-icheon", kind: "car", color: "#00B84A", outlineColor: "#007A32", pinKeys: ["incheon", "icheon"], path: [...ICHEON_ICN_PATH].reverse(), dashed: false },
+  { key: "nrt-pus", kind: "flight", color: "#2563EB", pinKeys: ["nrt", "busan"], path: curve(place("nrt"), place("busan"), 1.1), dashed: false, travelerIds: DAEKYEOM },
+  { key: "nrt-icn", kind: "flight", color: "#2563EB", pinKeys: ["nrt", "incheon"], path: curve(place("nrt"), place("incheon"), 1.45), dashed: false, travelerIds: INCHEON_TRAVELERS },
+  { key: "pus-mandeok", kind: "car", color: "#00B84A", outlineColor: "#007A32", pinKeys: ["busan", "mandeok"], path: [...MANDEOK_PUS_PATH].reverse(), dashed: false, travelerIds: DAEKYEOM },
+  { key: "icn-suwon", kind: "car", color: "#00B84A", outlineColor: "#007A32", pinKeys: ["incheon", "suwon"], path: [...SUWON_ICN_PATH].reverse(), dashed: false, travelerIds: GYUJUN },
+  { key: "icn-icheon", kind: "car", color: "#00B84A", outlineColor: "#007A32", pinKeys: ["incheon", "icheon"], path: [...ICHEON_ICN_PATH].reverse(), dashed: false, travelerIds: ICHEON_TRAVELERS },
 ];
 
 export function buildRouteLines(routes: readonly PublicRailRoute[]) {
@@ -185,26 +193,26 @@ export function buildRouteLines(routes: readonly PublicRailRoute[]) {
 }
 
 const pins: Record<string, MapPin> = {
-  mandeok: { key: "mandeok", label: "정대겸 · 만덕", position: place("mandeok") },
-  suwon: { key: "suwon", label: "한규준 · 수원역", position: place("suwon") },
-  icheon: { key: "icheon", label: "이규열·박준수 · 이천역", position: place("icheon") },
-  busan: { key: "busan", label: "PUS · 부산 출발", position: place("busan") },
-  incheon: { key: "incheon", label: "ICN · 인천 출발", position: place("incheon") },
-  kix: { key: "kix", label: "간사이국제공항", position: place("kix") },
-  kyoto: { key: "kyoto", label: "교토역", position: place("kyoto") },
-  kiyomizu: { key: "kiyomizu", label: "기요미즈데라", position: place("kiyomizu") },
-  kinkaku: { key: "kinkaku", label: "금각사", position: place("kinkaku") },
-  ginkaku: { key: "ginkaku", label: "은각사", position: place("ginkaku") },
-  odawara: { key: "odawara", label: "오다와라역", position: place("odawara") },
-  hakone: { key: "hakone", label: "하코네유모토역", position: place("hakone") },
-  tokyo: { key: "tokyo", label: "도쿄역", position: place("tokyo") },
-  ueno: { key: "ueno", label: "우에노역", position: place("ueno") },
-  shinjuku: { key: "shinjuku", label: "신주쿠", position: place("shinjuku") },
-  shibuya: { key: "shibuya", label: "시부야", position: place("shibuya") },
-  akihabara: { key: "akihabara", label: "아키하바라", position: place("akihabara") },
-  sensoji: { key: "sensoji", label: "센소지", position: place("sensoji") },
-  ginza: { key: "ginza", label: "긴자", position: place("ginza") },
-  nrt: { key: "nrt", label: "나리타국제공항", position: place("nrt") },
+  mandeok: { key: "mandeok", label: "만덕터널 인근", position: place("mandeok"), travelerIds: DAEKYEOM },
+  suwon: { key: "suwon", label: "수원시청", position: place("suwon"), travelerIds: GYUJUN },
+  icheon: { key: "icheon", label: "이천시청", position: place("icheon"), travelerIds: ICHEON_TRAVELERS },
+  busan: { key: "busan", label: "김해국제공항", position: place("busan"), travelerIds: DAEKYEOM },
+  incheon: { key: "incheon", label: "인천국제공항", position: place("incheon"), travelerIds: INCHEON_TRAVELERS },
+  kix: { key: "kix", label: "간사이국제공항", position: place("kix"), travelerIds: null },
+  kyoto: { key: "kyoto", label: "교토역", position: place("kyoto"), travelerIds: null },
+  kiyomizu: { key: "kiyomizu", label: "기요미즈데라", position: place("kiyomizu"), travelerIds: null },
+  kinkaku: { key: "kinkaku", label: "금각사", position: place("kinkaku"), travelerIds: null },
+  ginkaku: { key: "ginkaku", label: "은각사", position: place("ginkaku"), travelerIds: null },
+  odawara: { key: "odawara", label: "오다와라역", position: place("odawara"), travelerIds: null },
+  hakone: { key: "hakone", label: "하코네유모토역", position: place("hakone"), travelerIds: null },
+  tokyo: { key: "tokyo", label: "도쿄역", position: place("tokyo"), travelerIds: null },
+  ueno: { key: "ueno", label: "우에노역", position: place("ueno"), travelerIds: null },
+  shinjuku: { key: "shinjuku", label: "신주쿠", position: place("shinjuku"), travelerIds: null },
+  shibuya: { key: "shibuya", label: "시부야", position: place("shibuya"), travelerIds: null },
+  akihabara: { key: "akihabara", label: "아키하바라", position: place("akihabara"), travelerIds: null },
+  sensoji: { key: "sensoji", label: "센소지", position: place("sensoji"), travelerIds: null },
+  ginza: { key: "ginza", label: "긴자", position: place("ginza"), travelerIds: null },
+  nrt: { key: "nrt", label: "나리타국제공항", position: place("nrt"), travelerIds: null },
 };
 
 export const FULL_ROUTE_PINS = Object.values(pins);
@@ -222,8 +230,10 @@ const days: Record<DayNumber, DayLayers> = {
     lines: lines("mandeok-pus", "suwon-icn", "icheon-icn", "pus-kix", "icn-kix", "kix-kyoto"),
     pins: dayPins("mandeok", "suwon", "icheon", "busan", "incheon", "kix", "kyoto", "kiyomizu", "kinkaku", "ginkaku"),
     stages: [
-      { durationMs: CAMERA_SETTLE_MS, focusPinKeys: ["mandeok", "suwon", "icheon", "busan", "incheon"] },
-      { durationMs: 1400, lineKeys: ["mandeok-pus", "suwon-icn", "icheon-icn"] },
+      { durationMs: CAMERA_SETTLE_MS, focusPinKeys: ["mandeok", "busan"] },
+      { durationMs: 1400, lineKeys: ["mandeok-pus"] },
+      { durationMs: CAMERA_SETTLE_MS, focusPinKeys: ["suwon", "icheon", "incheon"] },
+      { durationMs: 1400, lineKeys: ["suwon-icn", "icheon-icn"] },
       { durationMs: CAMERA_SETTLE_MS, focusPinKeys: ["busan", "incheon", "kix"] },
       { durationMs: 2400, lineKeys: ["pus-kix", "icn-kix"] },
       { durationMs: CAMERA_SETTLE_MS, focusPinKeys: ["kix", "kyoto"] },
@@ -306,14 +316,32 @@ export function buildDayLayers(
   day: DayNumber,
   routeLines: readonly MapLine[] = FULL_ROUTE_LINES,
   schedules: Readonly<Partial<Record<string, RouteSchedule>>> = ROUTE_SCHEDULES,
+  selectedTravelerId: TravelerId | null = null,
 ): DayLayers {
   const replacements = new Map(routeLines.map((line) => [line.key, line]));
-  return {
-    ...days[day],
-    lines: days[day].lines.map((line) => replacements.get(line.key) ?? line),
-    stages: days[day].stages.map((stage) => {
-      const lineTimings = stageTiming(stage, schedules);
-      return lineTimings ? { ...stage, lineTimings } : stage;
-    }),
-  };
+  const selectedLines = days[day].lines
+    .map((line) => replacements.get(line.key) ?? line)
+    .filter((line) => visibleTo(line.travelerIds, selectedTravelerId));
+  const selectedPins = days[day].pins.filter((pin) => visibleTo(pin.travelerIds, selectedTravelerId));
+  const lineKeys = new Set(selectedLines.map((line) => line.key));
+  const pinKeys = new Set(selectedPins.map((pin) => pin.key));
+  const stages = days[day].stages.flatMap((stage) => {
+    const nextLineKeys = stage.lineKeys?.filter((key) => lineKeys.has(key));
+    const nextFocusPinKeys = stage.focusPinKeys?.filter((key) => pinKeys.has(key));
+    if (stage.lineKeys && nextLineKeys?.length === 0) return [];
+    if (stage.focusPinKeys && nextFocusPinKeys?.length === 0) return [];
+    if (stage.pinKey && !pinKeys.has(stage.pinKey)) return [];
+    const filtered = {
+      ...stage,
+      ...(nextLineKeys ? { lineKeys: nextLineKeys } : {}),
+      ...(nextFocusPinKeys ? { focusPinKeys: nextFocusPinKeys } : {}),
+    };
+    const lineTimings = stageTiming(filtered, schedules);
+    return [lineTimings ? { ...filtered, lineTimings } : filtered];
+  });
+  return { lines: selectedLines, pins: selectedPins, stages };
+}
+
+function visibleTo(travelerIds: TravelerScope, selectedTravelerId: TravelerId | null) {
+  return selectedTravelerId === null || travelerIds === null || travelerIds.includes(selectedTravelerId);
 }

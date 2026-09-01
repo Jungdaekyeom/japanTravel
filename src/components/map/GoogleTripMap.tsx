@@ -3,14 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { DayNumber, PublicRailRoute } from "../../trip/public";
+import type { TravelerId } from "../../trip/travelers";
 import { createRoutePlayback, pathAtProgress } from "./animation";
 import { loadGoogleMaps, type GoogleMapsLibraries } from "./map-script";
-import { buildDayLayers, buildRouteLines, FULL_ROUTE_PINS, type Coordinate, type MapLine } from "./placeholder-routes";
+import { buildDayLayers, buildRouteLines, FULL_ROUTE_PINS, ROUTE_SCHEDULES, type Coordinate, type MapLine } from "./placeholder-routes";
 import { StaticItinerary } from "./StaticItinerary";
 import styles from "./GoogleTripMap.module.css";
 
 type GoogleTripMapProps = {
   railRoutes?: readonly PublicRailRoute[];
+  selectedTravelerId: TravelerId | null;
   selectedDay: DayNumber | null;
   playbackRequest: number;
   reducedMotion: boolean;
@@ -25,7 +27,7 @@ const CAMERA_PADDING = 54;
 
 type CameraFrame = { center: google.maps.LatLngLiteral; zoom: number };
 
-export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, playbackRequest, reducedMotion, onPlaybackComplete }: GoogleTripMapProps) {
+export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTravelerId, selectedDay, playbackRequest, reducedMotion, onPlaybackComplete }: GoogleTripMapProps) {
   const [retryKey, setRetryKey] = useState(0);
   const [retryAttempt, setRetryAttempt] = useState(0);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
@@ -43,7 +45,7 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
   const configured = Boolean(apiKey && mapId);
   const routeLines = useRouteLines(railRoutes);
   const showOverview = selectedDay === null && playbackRequest === 0;
-  const visibleRouteLines = useMemo(() => selectedDay ? buildDayLayers(selectedDay, routeLines).lines : routeLines, [routeLines, selectedDay]);
+  const visibleRouteLines = useMemo(() => selectedDay ? buildDayLayers(selectedDay, routeLines, ROUTE_SCHEDULES, selectedTravelerId).lines : routeLines, [routeLines, selectedDay, selectedTravelerId]);
 
   useEffect(() => {
     if (!configured || !apiKey || !mapId) return;
@@ -116,7 +118,7 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
     };
   }, [loadState, routeLines, showOverview, visibleRouteLines]);
 
-  const requestKey = selectedDay && playbackRequest > 0 ? `${selectedDay}:${playbackRequest}` : null;
+  const requestKey = selectedDay && playbackRequest > 0 ? `${selectedTravelerId ?? "all"}:${selectedDay}:${playbackRequest}` : null;
 
   useEffect(() => {
     if ((configured && loadState !== "error") || !selectedDay || playbackRequest === 0) return;
@@ -129,7 +131,7 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
     if (loadState !== "ready" || !selectedDay || playbackRequest === 0 || !map.current || !libraries.current) return;
     const currentMap = map.current;
     const loaded = libraries.current;
-    const layers = buildDayLayers(selectedDay, routeLines);
+    const layers = buildDayLayers(selectedDay, routeLines, ROUTE_SCHEDULES, selectedTravelerId);
     const lineLabelKeys = (keys: readonly string[] = [], endpoint?: 0 | 1) => layers.lines
       .filter((line) => keys.includes(line.key))
       .flatMap((line) => endpoint === undefined ? line.pinKeys : [line.pinKeys[endpoint]]);
@@ -175,7 +177,7 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
     const initialFocusPinKeys = reducedMotion ? undefined : layers.stages[0]?.focusPinKeys;
     let focusedPinKey = "";
     let cameraTransition: { from: CameraFrame; to: CameraFrame } | null = null;
-    if (alreadyCompleted || !initialFocusPinKeys) fitDay(currentMap, selectedDay, routeLines);
+    if (alreadyCompleted || !initialFocusPinKeys) fitDay(currentMap, selectedDay, routeLines, selectedTravelerId);
 
     const clearSelection = () => {
       selectedLines.current.forEach((lines) => lines.forEach((line) => line.setMap(null)));
@@ -234,7 +236,7 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedDay, pla
       routePlayback.cancel();
       clearSelection();
     };
-  }, [loadState, onPlaybackComplete, playbackRequest, reducedMotion, requestKey, routeLines, selectedDay]);
+  }, [loadState, onPlaybackComplete, playbackRequest, reducedMotion, requestKey, routeLines, selectedDay, selectedTravelerId]);
 
   if (!configured || loadState === "error") {
     const message = !configured
@@ -330,8 +332,8 @@ function fitFullRoute(map: google.maps.Map, routeLines: readonly MapLine[]) {
   map.fitBounds(bounds(routeLines.flatMap((line) => line.path)), 36);
 }
 
-function fitDay(map: google.maps.Map, day: DayNumber, routeLines: readonly MapLine[]) {
-  const layers = buildDayLayers(day, routeLines);
+function fitDay(map: google.maps.Map, day: DayNumber, routeLines: readonly MapLine[], selectedTravelerId: TravelerId | null) {
+  const layers = buildDayLayers(day, routeLines, ROUTE_SCHEDULES, selectedTravelerId);
   const nextBounds = bounds([...layers.lines.flatMap((line) => line.path), ...layers.pins.map((pin) => pin.position)]);
   map.fitBounds(nextBounds, CAMERA_PADDING);
   map.setCenter(centerOf(nextBounds));

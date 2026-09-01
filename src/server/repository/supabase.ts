@@ -108,6 +108,22 @@ export class SupabaseTripRepository implements TripRepository {
     } : null;
   }
 
+  async claimOwnerToken(tokenHash: string, record: ClaimedSessionRecord) {
+    const { data, error } = await this.client.rpc("claim_owner_token", {
+      request_token_hash: tokenHash,
+      request_session_id: record.id,
+      request_session_token_hash: record.tokenHash,
+      request_created_at: record.createdAt.toISOString(),
+      request_expires_at: record.expiresAt.toISOString(),
+    });
+    fail(error);
+    const row = (data as Row[] | null)?.[0];
+    return row ? {
+      participantId: String(row.participant_id),
+      role: row.participant_role as "contributor" | "admin",
+    } : null;
+  }
+
   async findSessionByTokenHash(tokenHash: string) {
     const { data, error } = await this.client.from("sessions").select("*").eq("token_hash", tokenHash).maybeSingle();
     fail(error);

@@ -129,7 +129,7 @@ describe("GoogleTripMap", () => {
     const motion = installMotion();
     const onPlaybackComplete = vi.fn();
     delete (window as unknown as { google?: unknown }).google;
-    render(<GoogleTripMap railRoutes={[finalRailRoute]} selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
+    render(<GoogleTripMap railRoutes={[finalRailRoute]} selectedTravelerId={null} selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
     const script = document.querySelector<HTMLScriptElement>("script[data-google-maps-script]");
     expect(script).not.toBeNull();
     expect(screen.queryByText("Powered by Google, ©2026 Google")).not.toBeInTheDocument();
@@ -154,7 +154,7 @@ describe("GoogleTripMap", () => {
     const motion = installMotion();
     installGoogleBoundary();
     const onPlaybackComplete = vi.fn();
-    const { rerender } = render(<GoogleTripMap selectedDay={1} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
+    const { rerender } = render(<GoogleTripMap selectedTravelerId={null} selectedDay={1} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
 
     await waitFor(() => expect(motion.pending()).toBe(1));
     const firstSelection = FakePolyline.instances.filter(({ options }) => options.zIndex === 3);
@@ -163,10 +163,10 @@ describe("GoogleTripMap", () => {
     const map = FakeMap.instances[0];
     const boundsCallsBeforePanelClose = map.fitBounds.mock.calls.length;
 
-    rerender(<GoogleTripMap selectedDay={null} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
+    rerender(<GoogleTripMap selectedTravelerId={null} selectedDay={null} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
     expect(map.fitBounds).toHaveBeenCalledTimes(boundsCallsBeforePanelClose);
 
-    rerender(<GoogleTripMap selectedDay={2} playbackRequest={2} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
+    rerender(<GoogleTripMap selectedTravelerId={null} selectedDay={2} playbackRequest={2} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
     await waitFor(() => expect(motion.pending()).toBe(1));
     expect(firstSelection.every(({ map }) => map === null)).toBe(true);
 
@@ -181,7 +181,7 @@ describe("GoogleTripMap", () => {
     const motion = installMotion();
     installGoogleBoundary();
     const onPlaybackComplete = vi.fn();
-    const { rerender } = render(<GoogleTripMap railRoutes={[finalRailRoute]} selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
+    const { rerender } = render(<GoogleTripMap railRoutes={[finalRailRoute]} selectedTravelerId={null} selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
 
     await waitFor(() => expect(motion.pending()).toBe(1));
     motion.update(0.7);
@@ -192,7 +192,7 @@ describe("GoogleTripMap", () => {
       ...finalRailRoute,
       geometry: finalRailRoute.geometry.map(([latitude, longitude]) => [latitude, longitude] as const),
     };
-    rerender(<GoogleTripMap railRoutes={[equivalentRoute]} selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
+    rerender(<GoogleTripMap railRoutes={[equivalentRoute]} selectedTravelerId={null} selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
     await act(async () => {});
 
     expect(FakeMap.instances).toHaveLength(1);
@@ -207,12 +207,12 @@ describe("GoogleTripMap", () => {
 
   it("updates changed base rail geometry without recreating the map", async () => {
     installGoogleBoundary();
-    const { rerender } = render(<GoogleTripMap railRoutes={[finalRailRoute]} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+    const { rerender } = render(<GoogleTripMap railRoutes={[finalRailRoute]} selectedTravelerId={null} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
 
     await waitFor(() => expect(FakeMap.instances).toHaveLength(1));
     const originalBaseLines = FakePolyline.instances.filter(({ options }) => options.zIndex === 1);
     const changedGeometry = [{ lat: 34.44, lng: 135.25 }, { lat: 34.8, lng: 135.5 }, { lat: 35.1, lng: 135.8 }];
-    rerender(<GoogleTripMap railRoutes={[{ ...finalRailRoute, geometry: changedGeometry.map(({ lat, lng }) => [lat, lng] as const) }]} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+    rerender(<GoogleTripMap railRoutes={[{ ...finalRailRoute, geometry: changedGeometry.map(({ lat, lng }) => [lat, lng] as const) }]} selectedTravelerId={null} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
 
     await waitFor(() => {
       expect(FakePolyline.instances.some(({ options, path, map }) => options.zIndex === 1 && map !== null && JSON.stringify(path) === JSON.stringify(changedGeometry))).toBe(true);
@@ -224,7 +224,7 @@ describe("GoogleTripMap", () => {
 
   it("loads a map with a map ID, Advanced Markers, and all five supplied rail journeys", async () => {
     const importLibrary = installGoogleBoundary();
-    render(<GoogleTripMap selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
 
     await waitFor(() => expect(FakeMap.instances).toHaveLength(1));
     expect(FakeMap.instances[0].options).toMatchObject({ mapId: "test-map-id", disableDefaultUI: true });
@@ -239,18 +239,18 @@ describe("GoogleTripMap", () => {
 
   it("shows only the trip edge labels before a day is selected", async () => {
     installGoogleBoundary();
-    render(<GoogleTripMap selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
 
     await waitFor(() => expect(FakeAdvancedMarkerElement.instances.length).toBeGreaterThanOrEqual(16));
     expect(FakeAdvancedMarkerElement.instances.flatMap(({ options }) => {
       const content = options.content as HTMLElement;
       return content.dataset.labelVisible === "true" ? [content.textContent] : [];
-    })).toEqual(["PUS · 부산 출발", "ICN · 인천 출발", "간사이국제공항", "나리타국제공항"]);
+    })).toEqual(["김해국제공항", "인천국제공항", "간사이국제공항", "나리타국제공항"]);
   });
 
   it("prevents zooming or panning outside the padded Korea-Japan viewport", async () => {
     installGoogleBoundary();
-    render(<GoogleTripMap selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
 
     await waitFor(() => expect(FakeMap.instances).toHaveLength(1));
     const restriction = FakeMap.instances[0].options.restriction as google.maps.MapRestriction;
@@ -268,7 +268,7 @@ describe("GoogleTripMap", () => {
 
   it("draws final rail geometry on Google Maps and shows attribution only while it is visible", async () => {
     installGoogleBoundary();
-    render(<GoogleTripMap railRoutes={[finalRailRoute]} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+    render(<GoogleTripMap railRoutes={[finalRailRoute]} selectedTravelerId={null} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
 
     await waitFor(() => expect(FakeMap.instances).toHaveLength(1));
     const finalized = FakePolyline.instances.find(({ options }) => options.zIndex === 1 && options.path === FakePolyline.instances.find(({ path }) => JSON.stringify(path) === JSON.stringify([{ lat: 34.44, lng: 135.25 }, { lat: 35.01, lng: 135.77 }]))?.path);
@@ -279,7 +279,7 @@ describe("GoogleTripMap", () => {
 
   it("draws the sampled screenshot colors as outlined selected rail segments", async () => {
     installGoogleBoundary();
-    render(<GoogleTripMap selectedDay={3} playbackRequest={1} reducedMotion onPlaybackComplete={vi.fn()} />);
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={3} playbackRequest={1} reducedMotion onPlaybackComplete={vi.fn()} />);
 
     await waitFor(() => expect(FakePolyline.instances.filter(({ options }) => options.zIndex === 3)).toHaveLength(2));
     expect(FakePolyline.instances.filter(({ options }) => options.zIndex === 3).map(({ options }) => options.strokeColor)).toEqual([
@@ -295,7 +295,7 @@ describe("GoogleTripMap", () => {
 
   it("draws overview route lines at the reduced two-pixel weight", async () => {
     installGoogleBoundary();
-    render(<GoogleTripMap selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
 
     await waitFor(() => expect(FakePolyline.instances.some(({ options }) => options.zIndex === 1)).toBe(true));
     expect(new Set(FakePolyline.instances.filter(({ options }) => options.zIndex === 1).map(({ options }) => options.strokeWeight))).toEqual(new Set([2]));
@@ -304,16 +304,16 @@ describe("GoogleTripMap", () => {
   it("completes one reduced-motion playback per request while retaining only that day's route and pins", async () => {
     installGoogleBoundary();
     const onPlaybackComplete = vi.fn();
-    const { rerender } = render(<GoogleTripMap selectedDay={1} playbackRequest={1} reducedMotion onPlaybackComplete={onPlaybackComplete} />);
+    const { rerender } = render(<GoogleTripMap selectedTravelerId={null} selectedDay={1} playbackRequest={1} reducedMotion onPlaybackComplete={onPlaybackComplete} />);
 
     await waitFor(() => expect(onPlaybackComplete).toHaveBeenCalledTimes(1));
     expect(FakePolyline.instances.filter(({ options, map }) => options.zIndex === 1 && map !== null)).toHaveLength(6);
     expect(FakeAdvancedMarkerElement.instances.filter(({ map }) => map !== null).map(({ options }) => options.title)).toEqual([
-      "정대겸 · 만덕",
-      "한규준 · 수원역",
-      "이규열·박준수 · 이천역",
-      "PUS · 부산 출발",
-      "ICN · 인천 출발",
+      "만덕터널 인근",
+      "수원시청",
+      "이천시청",
+      "김해국제공항",
+      "인천국제공항",
       "간사이국제공항",
       "교토역",
       "기요미즈데라",
@@ -324,15 +324,46 @@ describe("GoogleTripMap", () => {
     expect(screen.queryByLabelText("경로 상태")).not.toBeInTheDocument();
     expect(FakeMap.instances[0].fitBounds).toHaveBeenCalled();
 
-    rerender(<GoogleTripMap selectedDay={1} playbackRequest={1} reducedMotion onPlaybackComplete={onPlaybackComplete} />);
+    rerender(<GoogleTripMap selectedTravelerId={null} selectedDay={1} playbackRequest={1} reducedMotion onPlaybackComplete={onPlaybackComplete} />);
     expect(onPlaybackComplete).toHaveBeenCalledTimes(1);
-    rerender(<GoogleTripMap selectedDay={1} playbackRequest={2} reducedMotion onPlaybackComplete={onPlaybackComplete} />);
+    rerender(<GoogleTripMap selectedTravelerId={null} selectedDay={1} playbackRequest={2} reducedMotion onPlaybackComplete={onPlaybackComplete} />);
     await waitFor(() => expect(onPlaybackComplete).toHaveBeenCalledTimes(2));
+  });
+
+  it("shows only Daekyeom's Day 1 route, pins, and camera bounds", async () => {
+    installGoogleBoundary();
+    const onPlaybackComplete = vi.fn();
+    render(<GoogleTripMap selectedTravelerId="daekyeom" selectedDay={1} playbackRequest={1} reducedMotion onPlaybackComplete={onPlaybackComplete} />);
+
+    await waitFor(() => expect(onPlaybackComplete).toHaveBeenCalledWith(1));
+    const markerTitles = FakeAdvancedMarkerElement.instances.filter(({ map }) => map !== null).map(({ options }) => options.title);
+    expect(markerTitles).toEqual(expect.arrayContaining(["만덕터널 인근", "김해국제공항", "간사이국제공항", "교토역"]));
+    expect(markerTitles).not.toEqual(expect.arrayContaining(["수원시청", "이천시청", "인천국제공항"]));
+    expect(FakeMap.instances[0].fitBounds.mock.calls.at(-1)?.[0]).toMatchObject({ west: expect.any(Number), east: expect.any(Number) });
+    expect((FakeMap.instances[0].fitBounds.mock.calls.at(-1)?.[0] as google.maps.LatLngBoundsLiteral).west).toBeGreaterThan(128);
+    expect((FakeMap.instances[0].fitBounds.mock.calls.at(-1)?.[0] as google.maps.LatLngBoundsLiteral).east).toBeLessThan(136);
+  });
+
+  it("cancels the prior playback and starts the newly selected traveler's playback", async () => {
+    const motion = installMotion();
+    installGoogleBoundary();
+    const onPlaybackComplete = vi.fn();
+    const { rerender } = render(<GoogleTripMap selectedTravelerId="daekyeom" selectedDay={1} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
+
+    await waitFor(() => expect(motion.pending()).toBe(1));
+    const priorPlayback = motionState.animations[0];
+    rerender(<GoogleTripMap selectedTravelerId="gyujun" selectedDay={1} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
+
+    await waitFor(() => expect(motionState.animations).toHaveLength(2));
+    expect(priorPlayback.stopped).toBe(true);
+    expect(FakeAdvancedMarkerElement.instances.filter(({ map }) => map !== null).map(({ options }) => options.title)).toEqual(expect.arrayContaining(["수원시청", "인천국제공항", "간사이국제공항", "교토역"]));
+    for (let index = 0; index < 12; index += 1) motion.complete();
+    expect(onPlaybackComplete).toHaveBeenCalledOnce();
   });
 
   it("fits every completed Day 5 endpoint when reduced motion skips the focus stages", async () => {
     installGoogleBoundary();
-    render(<GoogleTripMap selectedDay={5} playbackRequest={1} reducedMotion onPlaybackComplete={vi.fn()} />);
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={5} playbackRequest={1} reducedMotion onPlaybackComplete={vi.fn()} />);
 
     await waitFor(() => expect(FakePolyline.instances.filter(({ options }) => options.zIndex === 3)).toHaveLength(6));
     expect(FakeMap.instances[0].fitBounds.mock.calls.at(-1)?.[0]).toMatchObject({
@@ -344,7 +375,7 @@ describe("GoogleTripMap", () => {
   it("retains Day 4 selection on its three Tokyo pins without adding a route line", async () => {
     installGoogleBoundary();
     const onPlaybackComplete = vi.fn();
-    render(<GoogleTripMap selectedDay={4} playbackRequest={1} reducedMotion onPlaybackComplete={onPlaybackComplete} />);
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={4} playbackRequest={1} reducedMotion onPlaybackComplete={onPlaybackComplete} />);
 
     await waitFor(() => expect(onPlaybackComplete).toHaveBeenCalledOnce());
     expect(FakePolyline.instances.filter(({ options }) => options.zIndex === 3)).toHaveLength(0);
@@ -361,7 +392,7 @@ describe("GoogleTripMap", () => {
 
   it("retains only the literal first departure and final arrival labels after Day 2 completes", async () => {
     installGoogleBoundary();
-    render(<GoogleTripMap selectedDay={2} playbackRequest={1} reducedMotion onPlaybackComplete={vi.fn()} />);
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={2} playbackRequest={1} reducedMotion onPlaybackComplete={vi.fn()} />);
 
     await waitFor(() => expect(FakePolyline.instances.filter(({ options }) => options.zIndex === 3)).toHaveLength(2));
     const visibleLabels = FakeAdvancedMarkerElement.instances.flatMap(({ options }) => {
@@ -374,19 +405,23 @@ describe("GoogleTripMap", () => {
   it("shows only the current segment endpoints while Day 1 plays", async () => {
     const motion = installMotion();
     installGoogleBoundary();
-    render(<GoogleTripMap selectedDay={1} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={1} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
 
     await waitFor(() => expect(motion.pending()).toBe(1));
     const visibleLabels = () => FakeAdvancedMarkerElement.instances.flatMap(({ options }) => {
       const content = options.content as HTMLElement;
       return content.dataset.labelVisible === "true" ? [content.textContent] : [];
     });
-    expect(visibleLabels()).toEqual(["정대겸 · 만덕", "한규준 · 수원역", "이규열·박준수 · 이천역", "PUS · 부산 출발", "ICN · 인천 출발"]);
+    expect(visibleLabels()).toEqual(["만덕터널 인근", "김해국제공항"]);
 
     motion.complete();
-    expect(visibleLabels()).toEqual(["정대겸 · 만덕", "한규준 · 수원역", "이규열·박준수 · 이천역", "PUS · 부산 출발", "ICN · 인천 출발"]);
+    expect(visibleLabels()).toEqual(["만덕터널 인근", "김해국제공항"]);
     motion.complete();
-    expect(visibleLabels()).toEqual(["PUS · 부산 출발", "ICN · 인천 출발", "간사이국제공항"]);
+    expect(visibleLabels()).toEqual(["수원시청", "이천시청", "인천국제공항"]);
+    motion.complete();
+    expect(visibleLabels()).toEqual(["수원시청", "이천시청", "인천국제공항"]);
+    motion.complete();
+    expect(visibleLabels()).toEqual(["김해국제공항", "인천국제공항", "간사이국제공항"]);
     motion.complete();
     motion.complete();
     expect(visibleLabels()).toEqual(["간사이국제공항", "교토역"]);
@@ -395,15 +430,12 @@ describe("GoogleTripMap", () => {
   it("eases the Day 1 camera from the flight view into KIX and Kyoto without a bounds jump", async () => {
     const motion = installMotion();
     installGoogleBoundary();
-    render(<GoogleTripMap selectedDay={1} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={1} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
 
     await waitFor(() => expect(motion.pending()).toBe(1));
     const map = FakeMap.instances[0];
     expect(map.fitBounds).not.toHaveBeenCalled();
-    motion.complete();
-    motion.complete();
-    motion.complete();
-    motion.complete();
+    for (let index = 0; index < 6; index += 1) motion.complete();
     motion.update(0.5);
     const midwayToKix = map.moveCamera.mock.calls.at(-1)![0];
     expect(midwayToKix.center.lat).toBeCloseTo(35.329);
@@ -423,7 +455,7 @@ describe("GoogleTripMap", () => {
   it("eases between both Day 2 rail camera ranges", async () => {
     const motion = installMotion();
     installGoogleBoundary();
-    render(<GoogleTripMap selectedDay={2} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={2} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
 
     await waitFor(() => expect(motion.pending()).toBe(1));
     const map = FakeMap.instances[0];
@@ -444,7 +476,7 @@ describe("GoogleTripMap", () => {
   it("zooms into Ueno, Shinjuku, and Shibuya after the Day 3 rail arrival", async () => {
     const motion = installMotion();
     installGoogleBoundary();
-    render(<GoogleTripMap selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
 
     await waitFor(() => expect(motion.pending()).toBe(1));
     const map = FakeMap.instances[0];
@@ -458,7 +490,7 @@ describe("GoogleTripMap", () => {
   it("falls back and completes the static selection instead of leaving a blank or pending map when the public key is missing", async () => {
     Reflect.deleteProperty(process.env, "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY");
     const onPlaybackComplete = vi.fn();
-    render(<GoogleTripMap railRoutes={[finalRailRoute]} selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
+    render(<GoogleTripMap railRoutes={[finalRailRoute]} selectedTravelerId={null} selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
 
     expect(screen.getByRole("region", { name: "정적 여행 일정" })).toBeInTheDocument();
     expect(screen.getByText("3일차 일정")).toBeInTheDocument();

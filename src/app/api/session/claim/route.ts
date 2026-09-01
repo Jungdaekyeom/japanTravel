@@ -71,9 +71,9 @@ export function createClaimHandler({ repository, pepper, now = () => new Date() 
 }
 
 export async function POST(request: Request) {
-  const [{ getServerEnv }, { getTripRepository }] = await Promise.all([
+  const [{ getSessionEnv }, { getTripRepository }] = await Promise.all([
     import("../../../../server/env"),
     import("../../../../server/repository"),
   ]);
-  return createClaimHandler({ repository: getTripRepository(), pepper: getServerEnv().SESSION_PEPPER })(request);
+  return createClaimHandler({ repository: getTripRepository(), pepper: getSessionEnv().SESSION_PEPPER })(request);
 }

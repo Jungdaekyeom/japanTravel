@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { PUBLIC_TRIP_DEFINITION } from "../../trip/public";
-import { buildDayLayers, buildRouteLines, FULL_ROUTE_LINES } from "./placeholder-routes";
+import { buildDayLayers, buildRouteLines, FULL_ROUTE_LINES, ROUTE_SCHEDULES } from "./placeholder-routes";
 
 describe("placeholder route geometry", () => {
   it("starts the flight curves at the literal PUS and ICN airport coordinates", () => {
@@ -64,13 +64,55 @@ describe("placeholder route geometry", () => {
     expect(day1.pins.map(({ key }) => key)).toEqual([
       "mandeok", "suwon", "icheon", "busan", "incheon", "kix", "kyoto", "kiyomizu", "kinkaku", "ginkaku",
     ]);
-    expect(day1.stages[1]?.lineKeys).toEqual(["mandeok-pus", "suwon-icn", "icheon-icn"]);
-    expect(day1.stages[3]?.lineKeys).toEqual(["pus-kix", "icn-kix"]);
+    expect(day1.stages.slice(0, 6)).toEqual([
+      { durationMs: 1000, focusPinKeys: ["mandeok", "busan"] },
+      { durationMs: 1400, lineKeys: ["mandeok-pus"] },
+      { durationMs: 1000, focusPinKeys: ["suwon", "icheon", "incheon"] },
+      { durationMs: 1400, lineKeys: ["suwon-icn", "icheon-icn"] },
+      { durationMs: 1000, focusPinKeys: ["busan", "incheon", "kix"] },
+      { durationMs: 2400, lineKeys: ["pus-kix", "icn-kix"] },
+    ]);
 
     expect(day5.lines.map(({ key }) => key)).toEqual([
       "tokyo-narita", "nrt-pus", "nrt-icn", "pus-mandeok", "icn-suwon", "icn-icheon",
     ]);
     expect(day5.stages.at(-1)?.lineKeys).toEqual(["pus-mandeok", "icn-suwon", "icn-icheon"]);
+  });
+
+  it.each([
+    ["daekyeom", ["mandeok-pus", "pus-kix", "kix-kyoto"], ["tokyo-narita", "nrt-pus", "pus-mandeok"]],
+    ["gyuyeol", ["icheon-icn", "icn-kix", "kix-kyoto"], ["tokyo-narita", "nrt-icn", "icn-icheon"]],
+    ["junsu", ["icheon-icn", "icn-kix", "kix-kyoto"], ["tokyo-narita", "nrt-icn", "icn-icheon"]],
+    ["gyujun", ["suwon-icn", "icn-kix", "kix-kyoto"], ["tokyo-narita", "nrt-icn", "icn-suwon"]],
+  ] as const)("filters day 1 and 5 for %s", (travelerId, day1Keys, day5Keys) => {
+    expect(buildDayLayers(1, FULL_ROUTE_LINES, ROUTE_SCHEDULES, travelerId).lines.map(({ key }) => key)).toEqual(day1Keys);
+    expect(buildDayLayers(5, FULL_ROUTE_LINES, ROUTE_SCHEDULES, travelerId).lines.map(({ key }) => key)).toEqual(day5Keys);
+  });
+
+  it("returns identical shared layers for every traveler on days 2 through 4", () => {
+    for (const day of [2, 3, 4] as const) {
+      const expected = buildDayLayers(day, FULL_ROUTE_LINES, ROUTE_SCHEDULES, "daekyeom");
+      for (const travelerId of ["gyuyeol", "junsu", "gyujun"] as const) {
+        expect(buildDayLayers(day, FULL_ROUTE_LINES, ROUTE_SCHEDULES, travelerId)).toEqual(expected);
+      }
+    }
+  });
+
+  it("keeps selected traveler stages within their visible lines and pins", () => {
+    const layers = buildDayLayers(1, FULL_ROUTE_LINES, ROUTE_SCHEDULES, "daekyeom");
+    const lineKeys = new Set(layers.lines.map(({ key }) => key));
+    const pinKeys = new Set(layers.pins.map(({ key }) => key));
+
+    expect(layers.stages.flatMap(({ lineKeys = [] }) => lineKeys).every((key) => lineKeys.has(key))).toBe(true);
+    expect(layers.stages.flatMap(({ focusPinKeys = [] }) => focusPinKeys).every((key) => pinKeys.has(key))).toBe(true);
+    expect(layers.pins.map(({ key }) => key)).not.toEqual(expect.arrayContaining(["suwon", "icheon", "incheon"]));
+    expect(layers.stages).toEqual(expect.arrayContaining([
+      { durationMs: 1000, focusPinKeys: ["mandeok", "busan"] },
+      { durationMs: 1400, lineKeys: ["mandeok-pus"] },
+      { durationMs: 1000, focusPinKeys: ["busan", "kix"] },
+      { durationMs: 2400, lineKeys: ["pus-kix"] },
+    ]));
+    expect(layers.stages.flatMap(({ focusPinKeys = [] }) => focusPinKeys)).not.toEqual(expect.arrayContaining(["suwon", "icheon", "incheon"]));
   });
 
   it("compresses entered flight times into independent animation starts and arrivals", () => {
@@ -182,6 +224,7 @@ describe("placeholder route geometry", () => {
       label: "철도 이동",
       transportLabel: "도카이도 신칸센",
       googleDerived: true,
+      travelerIds: null,
     });
     expect(lines.filter(({ kind, dashed }) => kind === "rail" && dashed)).toHaveLength(3);
     expect(lines.find(({ key }) => key === "odawara-hakone")).toMatchObject({ kind: "connector", dashed: true });

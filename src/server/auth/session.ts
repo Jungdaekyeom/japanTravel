@@ -33,8 +33,14 @@ function readCookie(request: Request, name: string) {
     .find(([key]) => key === name)?.[1];
 }
 
+export function getBearerToken(request: Request) {
+  return request.headers.get("authorization")?.match(/^Bearer ([A-Za-z0-9_-]{43})$/)?.[1] ?? null;
+}
+
 export async function getViewer(request: Request, repository?: TripRepository, now = new Date()): Promise<Viewer> {
-  const token = readCookie(request, SESSION_COOKIE_NAME);
+  const token = request.headers.has("authorization")
+    ? getBearerToken(request)
+    : readCookie(request, SESSION_COOKIE_NAME);
   if (!token) return { role: "observer" as const };
 
   const activeRepository = repository ?? (await import("../repository")).getTripRepository();

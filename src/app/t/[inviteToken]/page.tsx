@@ -1,6 +1,5 @@
-import { TripApp } from "./TripApp";
+import { redirect } from "next/navigation";
 
-export default async function TripPage({ params }: { params: Promise<{ inviteToken: string }> }) {
-  const { inviteToken } = await params;
-  return <TripApp inviteToken={inviteToken} />;
+export default function TripPage() {
+  redirect("/#");
 }

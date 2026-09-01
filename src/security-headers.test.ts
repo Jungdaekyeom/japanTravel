@@ -7,14 +7,15 @@ function directive(policy: string, name: string) {
 }
 
 describe("Google Maps security headers", () => {
-  it("keeps the current Google Maps JavaScript allowlist on trip pages", async () => {
+  it("allows Google Maps only on the public root", async () => {
     const rules = await nextConfig.headers?.();
-    const mapRule = rules?.find(({ source }) => source === "/t/:path*");
+    const mapRule = rules?.find(({ source }) => source === "/");
     const productionPolicy = buildContentSecurityPolicy({ development: false, googleMaps: true });
     const script = directive(productionPolicy, "script-src");
     const connect = directive(productionPolicy, "connect-src");
 
     expect(mapRule).toBeDefined();
+    expect(rules?.find(({ source }) => source === "/t/:path*")).toBeUndefined();
     expect(script).toContain("'unsafe-eval'");
     expect(script).toContain("https://*.googleapis.com");
     expect(script).toContain("https://*.gstatic.com");
@@ -24,11 +25,21 @@ describe("Google Maps security headers", () => {
     expect(script).toContain("blob:");
     expect(productionPolicy).toContain("frame-src *.google.com");
     expect(connect).toContain("data: blob:");
+    expect(mapRule).toMatchObject({
+      headers: [expect.objectContaining({
+        key: "Content-Security-Policy",
+        value: expect.stringContaining("'unsafe-eval'"),
+      })],
+    });
   });
 
-  it("does not relax non-map production pages", () => {
+  it("keeps generic, terms, and privacy policies strict", async () => {
+    const rules = await nextConfig.headers?.();
     const policy = buildContentSecurityPolicy({ development: false, googleMaps: false });
 
+    expect(rules?.find(({ source }) => source === "/:path*")).toBeDefined();
+    expect(rules?.find(({ source }) => source === "/terms")).toBeUndefined();
+    expect(rules?.find(({ source }) => source === "/privacy")).toBeUndefined();
     expect(policy).not.toContain("'unsafe-eval'");
     expect(policy).not.toContain("*.googleusercontent.com");
     expect(policy).not.toContain("frame-src *.google.com");

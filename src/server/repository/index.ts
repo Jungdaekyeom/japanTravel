@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getServerEnv } from "../env";
+import { getSupabaseEnv } from "../env";
 
 import { createSupabaseRepository } from "./supabase";
 
@@ -11,7 +11,7 @@ let repository: ReturnType<typeof createSupabaseRepository> | undefined;
 
 export function getTripRepository() {
   if (!repository) {
-    const env = getServerEnv();
+    const env = getSupabaseEnv();
     repository = createSupabaseRepository(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY);
   }
   return repository;

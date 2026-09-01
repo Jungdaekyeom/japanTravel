@@ -1,9 +1,11 @@
 import { TRIP_DEFINITION } from "../../trip/definition";
 import { PUBLIC_TRIP_DEFINITION } from "../../trip/public";
+import { TRAVELERS } from "../../trip/travelers";
 import type {
   AdminPayload,
   ContributorPayload,
   ObserverPayload,
+  SharedTripPayload,
   TripPayload,
 } from "../../trip/public";
 import { decodePolyline } from "../routes/polyline";
@@ -87,6 +89,17 @@ function publicRailRoutes(routes: readonly RouteGeometryRecord[], now: Date) {
       return [];
     }
   });
+}
+
+export function buildSharedTripPayload(
+  routes: readonly RouteGeometryRecord[] = [],
+  now = new Date(),
+): SharedTripPayload {
+  return {
+    trip: PUBLIC_TRIP_DEFINITION,
+    travelers: TRAVELERS,
+    railRoutes: publicRailRoutes(routes, now),
+  };
 }
 
 export function buildTripPayload(viewer: Extract<OpinionViewer, { role: "observer" }>, opinions: readonly OpinionRecord[], routes?: readonly RouteGeometryRecord[], now?: Date): ObserverPayload;

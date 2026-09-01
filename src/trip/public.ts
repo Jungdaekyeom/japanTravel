@@ -1,3 +1,5 @@
+import type { PublicTraveler } from "./travelers";
+
 export const DAY_OPTIONS = [1, 2, 3, 4, 5] as const;
 export type DayNumber = typeof DAY_OPTIONS[number];
 
@@ -66,8 +68,8 @@ export const PUBLIC_TRIP_DEFINITION = {
   ],
   places: {
     mandeok: { name: "만덕터널 인근", latitude: 35.215263, longitude: 129.028309 },
-    suwon: { name: "수원역", latitude: 37.266093, longitude: 126.999851 },
-    icheon: { name: "이천역", latitude: 37.2656, longitude: 127.442 },
+    suwon: { name: "수원시청", latitude: 37.2634787, longitude: 127.0287097 },
+    icheon: { name: "이천시청", latitude: 37.2723484, longitude: 127.4350167 },
     busan: { name: "김해국제공항", latitude: 35.1796, longitude: 128.9382 },
     incheon: { name: "인천국제공항", latitude: 37.4602, longitude: 126.4407 },
     kix: { name: "간사이국제공항", latitude: 34.4347, longitude: 135.244 },
@@ -89,6 +91,11 @@ export const PUBLIC_TRIP_DEFINITION = {
 } as const satisfies PublicTripDefinition;
 
 export type PublicTrip = typeof PUBLIC_TRIP_DEFINITION;
+export type SharedTripPayload = {
+  trip: PublicTrip;
+  travelers: readonly PublicTraveler[];
+  railRoutes: PublicRailRoute[];
+};
 export type PublicRejection = { authorName: string; publicSummary: string; reason: string; accepted: boolean };
 export type OwnOpinion = { id: string; targetDay: DayNumber | null; body: string; status: OpinionStatus; accepted: boolean };
 export type ReviewOpinion = {

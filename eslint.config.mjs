@@ -18,6 +18,7 @@ export default defineConfig([
   },
   globalIgnores([
     ".next/**",
+    "apps/owner/**",
     "coverage/**",
     "out/**",
     "playwright-report/**",

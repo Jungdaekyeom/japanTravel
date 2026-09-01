@@ -15,7 +15,7 @@ export default defineConfig({
   },
   webServer: {
     command: `pnpm dev --hostname 127.0.0.1 --port ${port}`,
-    url: `http://127.0.0.1:${port}/t/e2e-ready`,
+    url: `http://127.0.0.1:${port}/`,
     reuseExistingServer: false,
     stdout: "pipe",
     stderr: "pipe",

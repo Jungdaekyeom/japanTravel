@@ -3,22 +3,30 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { DayNumber } from "../../../trip/public";
-import { PUBLIC_TRIP_DEFINITION } from "../../../trip/public";
+import { PUBLIC_TRIP_DEFINITION, type DayNumber, type SharedTripPayload } from "../../../trip/public";
+import { TRAVELERS, type TravelerId } from "../../../trip/travelers";
+
+type MockProps = {
+  selectedTravelerId: TravelerId | null;
+  selectedDay: DayNumber | null;
+  onPlaybackComplete: (day: DayNumber) => void;
+};
 
 vi.mock("../../../components/map/GoogleTripMap", () => ({
-  GoogleTripMap: ({ selectedDay, onPlaybackComplete }: { selectedDay: DayNumber | null; onPlaybackComplete: (day: DayNumber) => void }) => (
-    <button type="button" disabled={!selectedDay} onClick={() => selectedDay && onPlaybackComplete(selectedDay)}>지도 재생 완료</button>
+  GoogleTripMap: ({ selectedTravelerId, selectedDay, onPlaybackComplete }: MockProps) => (
+    <>
+      <output aria-label="지도 선택">{selectedTravelerId ?? "all"}:{selectedDay ?? "overview"}</output>
+      <button type="button" disabled={!selectedDay} onClick={() => selectedDay && onPlaybackComplete(selectedDay)}>지도 재생 완료</button>
+    </>
   ),
 }));
 
 import { TripApp } from "./TripApp";
 
-const observerPayload = {
-  role: "observer" as const,
+const sharedPayload: SharedTripPayload = {
   trip: PUBLIC_TRIP_DEFINITION,
+  travelers: TRAVELERS,
   railRoutes: [],
-  publicRejections: [],
 };
 
 function media() {
@@ -38,7 +46,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   media();
   Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(observerPayload), {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(sharedPayload), {
     status: 200,
     headers: { "content-type": "application/json" },
   })));
@@ -51,44 +59,21 @@ afterEach(() => {
 });
 
 describe("TripApp 전체 일정 재생", () => {
-  it("closes the panel and advances days 1 through 5 once per completion", async () => {
-    render(<TripApp inviteToken="invite-123" />);
+  it("keeps every traveler's routes visible while all days advance from 1 through 5", async () => {
+    render(<TripApp />);
     await act(async () => {});
-
     fireEvent.click(screen.getByRole("button", { name: "전체 일정" }));
     await act(async () => vi.advanceTimersByTime(0));
 
     const complete = screen.getByRole("button", { name: "지도 재생 완료" });
-    expect(screen.getByRole("status")).toHaveTextContent("전체 일정 · 1일차 경로 재생 중");
+    expect(screen.getByLabelText("지도 선택")).toHaveTextContent("all:1");
     for (const day of [2, 3, 4, 5]) {
       fireEvent.click(complete);
-      expect(screen.getByRole("status")).toHaveTextContent(`전체 일정 · ${day}일차 경로 재생 중`);
+      expect(screen.getByLabelText("지도 선택")).toHaveTextContent(`all:${day}`);
     }
     fireEvent.click(complete);
 
-    expect(screen.getByRole("status")).toHaveTextContent("전체 일정 경로 재생 완료");
+    expect(screen.getByText("전원 전체 일정 경로 재생 완료")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "전체 일정 다시 재생" })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "전체 일정 다시 재생" }));
-    expect(screen.getByRole("status")).toHaveTextContent("전체 일정 · 1일차 경로 다시 재생 중");
-  });
-
-  it("cancels continuous playback when a single day is selected", async () => {
-    render(<TripApp inviteToken="invite-123" />);
-    await act(async () => {});
-
-    fireEvent.click(screen.getByRole("button", { name: "전체 일정" }));
-    await act(async () => vi.advanceTimersByTime(0));
-    fireEvent.click(screen.getByRole("button", { name: "지도 재생 완료" }));
-    expect(screen.getByRole("status")).toHaveTextContent("전체 일정 · 2일차 경로 재생 중");
-
-    fireEvent.click(screen.getByRole("button", { name: "일정 패널 열기" }));
-    fireEvent.click(screen.getByRole("button", { name: /4일차/ }));
-    await act(async () => vi.advanceTimersByTime(0));
-    fireEvent.click(screen.getByRole("button", { name: "지도 재생 완료" }));
-
-    expect(screen.getByRole("status")).toHaveTextContent("4일차 경로 재생 완료");
-    expect(screen.getByRole("button", { name: "4일차 경로 다시 재생" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "전체 일정 다시 재생" })).not.toBeInTheDocument();
   });
 });

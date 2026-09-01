@@ -37,8 +37,10 @@ describe("buildDayLayers", () => {
         lines: ["mandeok-pus", "suwon-icn", "icheon-icn", "pus-kix", "icn-kix", "kix-kyoto"],
         pins: ["mandeok", "suwon", "icheon", "busan", "incheon", "kix", "kyoto", "kiyomizu", "kinkaku", "ginkaku"],
         stages: [
-          { durationMs: 1000, lineKeys: undefined, pinKey: undefined, focusPinKeys: ["mandeok", "suwon", "icheon", "busan", "incheon"] },
-          { durationMs: 1400, lineKeys: ["mandeok-pus", "suwon-icn", "icheon-icn"], pinKey: undefined, focusPinKeys: undefined },
+          { durationMs: 1000, lineKeys: undefined, pinKey: undefined, focusPinKeys: ["mandeok", "busan"] },
+          { durationMs: 1400, lineKeys: ["mandeok-pus"], pinKey: undefined, focusPinKeys: undefined },
+          { durationMs: 1000, lineKeys: undefined, pinKey: undefined, focusPinKeys: ["suwon", "icheon", "incheon"] },
+          { durationMs: 1400, lineKeys: ["suwon-icn", "icheon-icn"], pinKey: undefined, focusPinKeys: undefined },
           { durationMs: 1000, lineKeys: undefined, pinKey: undefined, focusPinKeys: ["busan", "incheon", "kix"] },
           { durationMs: 2400, lineKeys: ["pus-kix", "icn-kix"], pinKey: undefined, focusPinKeys: undefined },
           { durationMs: 1000, lineKeys: undefined, pinKey: undefined, focusPinKeys: ["kix", "kyoto"] },

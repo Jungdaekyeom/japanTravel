@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { OpinionRecord, RouteGeometryRecord } from "../repository/types";
 
-import { buildTripPayload } from "./payload";
+import { buildSharedTripPayload, buildTripPayload } from "./payload";
 
 function rejectedOpinion(overrides: Partial<OpinionRecord>): OpinionRecord {
   return {
@@ -24,6 +24,23 @@ function rejectedOpinion(overrides: Partial<OpinionRecord>): OpinionRecord {
 }
 
 describe("buildTripPayload", () => {
+  it("builds one role-free shared payload", () => {
+    const payload = buildSharedTripPayload([], new Date("2026-09-10T00:00:00.000Z"));
+
+    expect(payload).toMatchObject({
+      trip: { startDate: "2026-10-02", endDate: "2026-10-06" },
+      travelers: [
+        { id: "daekyeom", name: "정대겸" },
+        { id: "gyuyeol", name: "이규열" },
+        { id: "junsu", name: "박준수" },
+        { id: "gyujun", name: "한규준" },
+      ],
+      railRoutes: [],
+    });
+    expect(JSON.stringify(payload)).not.toMatch(/role|displayName|ownOpinions|reviewQueue|publicRejections|birthYear/);
+    expect(JSON.stringify(payload)).not.toMatch(/departureCity|token|session/);
+  });
+
   it("publishes only active finalized rail coordinates with the generic label", () => {
     const now = new Date("2026-09-10T00:00:00.000Z");
     const route = (overrides: Partial<RouteGeometryRecord>): RouteGeometryRecord => ({

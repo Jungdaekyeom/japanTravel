@@ -84,6 +84,7 @@ export type TripRepository = {
   findParticipantById(id: string): Promise<ParticipantRecord | null>;
   createSession(session: SessionRecord): Promise<void>;
   claimPersonalToken(tokenHash: string, session: ClaimedSessionRecord): Promise<PersonalTokenClaim | null>;
+  claimOwnerToken(tokenHash: string, session: ClaimedSessionRecord): Promise<PersonalTokenClaim | null>;
   findSessionByTokenHash(tokenHash: string): Promise<SessionRecord | null>;
   deleteSessionByTokenHash(tokenHash: string): Promise<void>;
   reserveLoginAttempt(ipHash: string, now: Date): Promise<string | null>;

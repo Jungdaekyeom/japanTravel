@@ -117,6 +117,24 @@ export class InMemoryTripRepository implements TripRepository {
     });
   }
 
+  async claimOwnerToken(tokenHash: string, session: ClaimedSessionRecord) {
+    return this.locked("sessionQueue", () => {
+      const token = this.claimTokens.find((candidate) =>
+        candidate.participantId === "daekyeom" && candidate.tokenHash === tokenHash && candidate.consumedAt === null,
+      );
+      const owner = this.participants.find((candidate) => candidate.id === "daekyeom" && candidate.role === "admin");
+      if (!token || !owner) return null;
+      if (this.sessions.some((candidate) =>
+        candidate.participantId !== owner.id && (candidate.id === session.id || candidate.tokenHash === session.tokenHash),
+      )) throw new Error("Session token hash already exists");
+
+      this.sessions = this.sessions.filter((candidate) => candidate.participantId !== owner.id);
+      this.sessions.push(copy({ ...session, participantId: owner.id }));
+      token.consumedAt = new Date(session.createdAt);
+      return { participantId: owner.id, role: owner.role };
+    });
+  }
+
   async findSessionByTokenHash(tokenHash: string) {
     const session = this.sessions.find((candidate) => candidate.tokenHash === tokenHash);
     return session ? copy(session) : null;

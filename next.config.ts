@@ -69,7 +69,7 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/t/:path*",
+        source: "/",
         headers: [
           {
             key: "Content-Security-Policy",

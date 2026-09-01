@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getPersonalLinkEnv, getServerEnv } from "./env";
+import { getPersonalLinkEnv, getServerEnv, getSessionEnv, getSupabaseEnv } from "./env";
 
 const commonEnv = {
   SUPABASE_URL: "https://example.supabase.co",
@@ -28,6 +28,43 @@ function stubEnvironment(values: Record<string, string>) {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("server environment", () => {
+  it("allows session setup without an invite token", () => {
+    stubEnvironment(commonEnv);
+
+    expect(getSessionEnv()).toEqual(commonEnv);
+  });
+
+  it.each([
+    ["SUPABASE_URL"],
+    ["SUPABASE_SECRET_KEY"],
+    ["SESSION_PEPPER"],
+  ] as const)("rejects session setup without %s", (missingName) => {
+    const values = { ...commonEnv };
+    delete values[missingName];
+    stubEnvironment(values);
+
+    expect(() => getSessionEnv()).toThrow("Missing required session environment variables");
+  });
+
+  it("preserves the invite-token requirement for the legacy server environment", () => {
+    stubEnvironment(commonEnv);
+
+    expect(() => getServerEnv()).toThrow("Missing required server environment variables");
+  });
+
+  it("allows repository setup with only Supabase credentials", () => {
+    stubEnvironment({
+      SUPABASE_URL: commonEnv.SUPABASE_URL,
+      SUPABASE_SECRET_KEY: commonEnv.SUPABASE_SECRET_KEY,
+    });
+
+    expect(getSupabaseEnv()).toEqual({
+      SUPABASE_URL: commonEnv.SUPABASE_URL,
+      SUPABASE_SECRET_KEY: commonEnv.SUPABASE_SECRET_KEY,
+    });
+    expect(() => getServerEnv()).toThrow("Missing required server environment variables");
+  });
+
   it("uses only the current Supabase secret key", () => {
     stubEnvironment({ ...commonEnv, INVITE_TOKEN: "invite-token" });
 

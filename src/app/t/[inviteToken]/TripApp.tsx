@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { TripPanel } from "../../../components/TripPanel";
 import { GoogleTripMap } from "../../../components/map/GoogleTripMap";
-import type { DayNumber, TripPayload } from "../../../trip/public";
+import type { DayNumber, SharedTripPayload } from "../../../trip/public";
 import styles from "./TripApp.module.css";
 
 function useMedia(query: string) {
@@ -19,11 +19,10 @@ function useMedia(query: string) {
   return matches;
 }
 
-function MobileTripApp({ inviteToken }: { inviteToken: string }) {
+function MobileTripApp() {
   const reducedMotion = useMedia("(prefers-reduced-motion: reduce)");
-  const [payload, setPayload] = useState<TripPayload | null>(null);
+  const [payload, setPayload] = useState<SharedTripPayload | null>(null);
   const [loadError, setLoadError] = useState("");
-  const [claimError, setClaimError] = useState("");
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelClosing, setPanelClosing] = useState(false);
   const [focusOnOpen, setFocusOnOpen] = useState(false);
@@ -34,65 +33,28 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
   const [liveStatus, setLiveStatus] = useState("전체 5일 경로 표시 중");
   const closeTimer = useRef<number | null>(null);
   const openButtonRef = useRef<HTMLButtonElement>(null);
-  const refreshId = useRef(0);
   const refreshController = useRef<AbortController | null>(null);
 
   const refresh = useCallback(async () => {
-    const id = ++refreshId.current;
     refreshController.current?.abort();
     const controller = new AbortController();
     refreshController.current = controller;
     try {
-      const response = await fetch(`/api/trip/${encodeURIComponent(inviteToken)}`, { cache: "no-store", signal: controller.signal });
+      const response = await fetch("/api/trip", { cache: "no-store", signal: controller.signal });
       if (!response.ok) throw new Error("일정을 불러오지 못했습니다.");
-      const nextPayload = await response.json() as TripPayload;
-      if (controller.signal.aborted || id !== refreshId.current) return;
+      const nextPayload = await response.json() as SharedTripPayload;
+      if (controller.signal.aborted) return;
       setPayload(nextPayload);
       setLoadError("");
     } catch (error) {
-      if (controller.signal.aborted || id !== refreshId.current) return;
+      if (controller.signal.aborted) return;
       const message = error instanceof Error ? error.message : "일정을 불러오지 못했습니다.";
       setLoadError(message);
       throw new Error(message);
     } finally {
-      if (id === refreshId.current) refreshController.current = null;
+      if (refreshController.current === controller) refreshController.current = null;
     }
-  }, [inviteToken]);
-
-  useEffect(() => {
-    const controllers = new Set<AbortController>();
-    const claimFragment = () => {
-      const token = new URLSearchParams(window.location.hash.slice(1)).get("join");
-      if (token === null) return;
-      setClaimError("");
-      window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
-      const controller = new AbortController();
-      controllers.add(controller);
-      void fetch("/api/session/claim", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token }),
-        signal: controller.signal,
-      }).then((response) => {
-        if (!response.ok && response.status !== 401) {
-          setClaimError("개인 링크를 확인하지 못했습니다. 카카오톡 링크를 다시 열어주세요.");
-        }
-      }).catch(() => {
-        if (!controller.signal.aborted) {
-          setClaimError("개인 링크를 확인하지 못했습니다. 카카오톡 링크를 다시 열어주세요.");
-        }
-      }).finally(() => {
-        controllers.delete(controller);
-        if (!controller.signal.aborted) void refresh().catch(() => {});
-      });
-    };
-    claimFragment();
-    window.addEventListener("hashchange", claimFragment);
-    return () => {
-      window.removeEventListener("hashchange", claimFragment);
-      for (const controller of controllers) controller.abort();
-    };
-  }, [refresh]);
+  }, []);
 
   useEffect(() => {
     let intervalId: number | undefined;
@@ -113,7 +75,6 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
     return () => {
       if (intervalId !== undefined) window.clearInterval(intervalId);
       if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
-      refreshId.current += 1;
       refreshController.current?.abort();
       refreshController.current = null;
       document.removeEventListener("visibilitychange", onVisibility);
@@ -139,25 +100,25 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
 
   function selectDay(day: DayNumber) {
     setPlayingAll(false);
-    setLiveStatus(`${day}일차 선택됨. 패널 닫는 중`);
+    setLiveStatus(`전원 · ${day}일차 선택됨. 패널 닫는 중`);
     setCompletedDay(null);
     setSelectedDay(null);
     finishClose(() => {
       setSelectedDay(day);
       setPlaybackRequest((request) => request + 1);
-      setLiveStatus(`${day}일차 경로 재생 중`);
+      setLiveStatus(`전원 · ${day}일차 경로 재생 중`);
     });
   }
 
   function selectAllDays() {
     setPlayingAll(true);
-    setLiveStatus("전체 일정 선택됨. 패널 닫는 중");
+    setLiveStatus("전원 전체 일정 선택됨. 패널 닫는 중");
     setCompletedDay(null);
     setSelectedDay(null);
     finishClose(() => {
       setSelectedDay(1);
       setPlaybackRequest((request) => request + 1);
-      setLiveStatus("전체 일정 · 1일차 경로 재생 중");
+      setLiveStatus("전원 전체 일정 · 1일차 경로 재생 중");
     });
   }
 
@@ -166,11 +127,11 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
       const nextDay = (day + 1) as DayNumber;
       setSelectedDay(nextDay);
       setPlaybackRequest((request) => request + 1);
-      setLiveStatus(`전체 일정 · ${nextDay}일차 경로 재생 중`);
+      setLiveStatus(`전원 전체 일정 · ${nextDay}일차 경로 재생 중`);
       return;
     }
     setCompletedDay(day);
-    setLiveStatus(playingAll ? "전체 일정 경로 재생 완료" : `${day}일차 경로 재생 완료`);
+    setLiveStatus(playingAll ? "전원 전체 일정 경로 재생 완료" : `전원 · ${day}일차 경로 재생 완료`);
   }, [playingAll]);
 
   function replay() {
@@ -178,9 +139,9 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
     setCompletedDay(null);
     if (playingAll) {
       setSelectedDay(1);
-      setLiveStatus("전체 일정 · 1일차 경로 다시 재생 중");
+      setLiveStatus("전원 전체 일정 · 1일차 경로 다시 재생 중");
     } else {
-      setLiveStatus(`${selectedDay}일차 경로 다시 재생 중`);
+      setLiveStatus(`전원 · ${selectedDay}일차 경로 다시 재생 중`);
     }
     setPlaybackRequest((request) => request + 1);
   }
@@ -195,8 +156,7 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
 
   return (
     <main className={styles.app}>
-      <GoogleTripMap railRoutes={payload.railRoutes} selectedDay={selectedDay} playbackRequest={playbackRequest} reducedMotion={reducedMotion === true} onPlaybackComplete={playbackComplete} />
-      {claimError && <p className={styles.staleWarning} role="alert">{claimError}</p>}
+      <GoogleTripMap railRoutes={payload.railRoutes} selectedTravelerId={null} selectedDay={selectedDay} playbackRequest={playbackRequest} reducedMotion={reducedMotion === true} onPlaybackComplete={playbackComplete} />
       {loadError && <p className={styles.staleWarning} role="alert">최신 데이터를 불러오지 못했습니다. 기존 일정을 표시합니다.</p>}
       {(panelOpen || panelClosing) && (
         <TripPanel
@@ -208,7 +168,6 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
           onSelectAll={selectAllDays}
           onSelectDay={selectDay}
           onClose={() => finishClose()}
-          onRefresh={refresh}
         />
       )}
       {!panelOpen && !panelClosing && (
@@ -222,9 +181,9 @@ function MobileTripApp({ inviteToken }: { inviteToken: string }) {
   );
 }
 
-export function TripApp({ inviteToken }: { inviteToken: string }) {
+export function TripApp() {
   const desktop = useMedia("(min-width: 768px)");
   if (desktop === null) return null;
   if (desktop) return <main className={styles.desktopGate}><p>휴대폰에서 접속해 주세요</p></main>;
-  return <MobileTripApp inviteToken={inviteToken} />;
+  return <MobileTripApp />;
 }

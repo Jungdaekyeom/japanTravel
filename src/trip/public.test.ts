@@ -5,6 +5,7 @@ import {
   PUBLIC_TRIP_DEFINITION,
   REJECTION_CATEGORY_OPTIONS,
 } from "./public";
+import { FULL_ROUTE_PINS } from "../components/map/placeholder-routes";
 
 describe("public trip domain boundary", () => {
   it("exposes itinerary constants without participant credentials or roster fields", () => {
@@ -23,5 +24,15 @@ describe("public trip domain boundary", () => {
     });
     expect(Object.hasOwn(PUBLIC_TRIP_DEFINITION, "participants")).toBe(false);
     expect(JSON.stringify(PUBLIC_TRIP_DEFINITION)).not.toMatch(/birthYear|departureCity|daekyeom|gyuyeol|junsu|gyujun/);
+  });
+
+  it("uses city halls and keeps person names out of map labels", () => {
+    expect(PUBLIC_TRIP_DEFINITION.places.icheon).toMatchObject({
+      name: "이천시청", latitude: 37.2723484, longitude: 127.4350167,
+    });
+    expect(PUBLIC_TRIP_DEFINITION.places.suwon).toMatchObject({
+      name: "수원시청", latitude: 37.2634787, longitude: 127.0287097,
+    });
+    expect(FULL_ROUTE_PINS.map(({ label }) => label).join(" ")).not.toMatch(/정대겸|이규열|박준수|한규준/);
   });
 });

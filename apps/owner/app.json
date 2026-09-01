@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "일본여행 관리",
+    "slug": "japan-travel-owner",
+    "version": "1.0.0",
+    "platforms": ["android"],
+    "android": {
+      "package": "com.daekyeom.japantravel.owner"
+    },
+    "plugins": [["expo-secure-store", { "configureAndroidBackup": true }]]
+  }
+}
