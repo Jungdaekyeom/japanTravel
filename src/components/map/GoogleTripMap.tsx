@@ -20,7 +20,6 @@ type GoogleTripMapProps = {
 };
 
 const EMPTY_RAIL_ROUTES: readonly PublicRailRoute[] = [];
-const TRIP_MAP_LIMITS = { north: 55, south: 18, west: 125.4, east: 141.4 } as const;
 const OVERVIEW_LABEL_KEYS = new Set(["busan", "incheon", "kix", "nrt"]);
 const DEFAULT_CAMERA = { center: { lat: 35.62, lng: 137.34 }, zoom: 5 } as const;
 const CAMERA_PADDING = 54;
@@ -66,7 +65,6 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
         clickableIcons: false,
         gestureHandling: "greedy",
         keyboardShortcuts: true,
-        restriction: { latLngBounds: TRIP_MAP_LIMITS, strictBounds: false },
       });
       map.current = nextMap;
       markers.current = FULL_ROUTE_PINS.map((pin) => {

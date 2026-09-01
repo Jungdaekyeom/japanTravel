@@ -466,19 +466,15 @@ describe("GoogleTripMap", () => {
     expect(FakeMap.instances[0].setCenter).toHaveBeenCalledTimes(2);
   });
 
-  it.each(MAP_DIMENSIONS)("uses a soft Korea-Japan restriction and 54px overview bounds at %ix%i", async (width, height) => {
+  it.each(MAP_DIMENSIONS)("keeps programmatic camera frames unrestricted and uses 54px overview bounds at %ix%i", async (width, height) => {
     FakeMap.viewport = { width, height };
     installGoogleBoundary();
     render(<GoogleTripMap selectedTravelerId={null} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
 
     await waitFor(() => expect(FakeMap.instances).toHaveLength(1));
     const map = FakeMap.instances[0];
-    const restriction = map.options.restriction as google.maps.MapRestriction;
-    const limits = restriction.latLngBounds as google.maps.LatLngBoundsLiteral;
-
-    expect(restriction.strictBounds).toBe(false);
+    expect(map.options.restriction).toBeUndefined();
     expect(map.options.minZoom).toBe(4);
-    expect(limits).toEqual({ north: 55, south: 18, west: 125.4, east: 141.4 });
     expect(map.fitBounds).toHaveBeenLastCalledWith(OVERVIEW_ROUTE_BOUNDS, 54);
     expect(map.setCenter).not.toHaveBeenCalled();
     expect(map.moveCamera).not.toHaveBeenCalled();
