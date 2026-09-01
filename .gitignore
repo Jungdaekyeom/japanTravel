@@ -13,5 +13,4 @@ test-results/
 supabase/.temp/
 apps/owner/.expo/
 apps/owner/android/
-.vercel
 .pnpm-store/

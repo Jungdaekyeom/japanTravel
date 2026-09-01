@@ -6,7 +6,7 @@ export type Coordinate = { lat: number; lng: number };
 type TravelerScope = readonly TravelerId[] | null;
 export type MapLine = {
   key: string;
-  kind: "car" | "flight" | "rail" | "connector";
+  kind: "car" | "flight" | "rail" | "connector" | "bus" | "walk";
   color: string;
   outlineColor?: string;
   pinKeys: readonly [PlaceKey, PlaceKey];
@@ -17,7 +17,7 @@ export type MapLine = {
   googleDerived?: true;
   travelerIds: TravelerScope;
 };
-export type MapPin = { key: string; label: string; position: Coordinate; travelerIds: TravelerScope };
+export type MapPin = { key: string; label?: string; position: Coordinate; travelerIds: TravelerScope };
 export type DayLayers = { lines: readonly MapLine[]; pins: readonly MapPin[]; stages: readonly PlaybackStage[] };
 const CAMERA_SETTLE_MS = 1000;
 export type RouteSchedule = { departureAt: string | null; arrivalAt: string | null };
@@ -121,33 +121,201 @@ const UENO_NARITA_PATH = [
   place("nrt"),
 ] as const;
 
+const KYOTO_EKI_MAE = { lat: 34.986749, lng: 135.759158 };
+const KIYOMIZU_MICHI = { lat: 34.997131, lng: 135.776828 };
+const GION = { lat: 35.004565, lng: 135.777447 };
+const GINKAKU_ARRIVAL = { lat: 35.026875, lng: 135.791730 };
+const GINKAKU_DEPARTURE = { lat: 35.027973, lng: 135.790665 };
+const KINKAKU_ARRIVAL = { lat: 35.039443, lng: 135.733350 };
+const KINKAKU_DEPARTURE = { lat: 35.038642, lng: 135.733339 };
+
+const KYOTO_KIYOMIZU_BUS_PATH = [
+  place("kyoto"),
+  KYOTO_EKI_MAE,
+  { lat: 34.990154, lng: 135.759431 },
+  { lat: 34.990240, lng: 135.766800 },
+  { lat: 34.990230, lng: 135.775770 },
+  KIYOMIZU_MICHI,
+] as const;
+
+const KYOTO_KIYOMIZU_WALK_PATH = [
+  KIYOMIZU_MICHI,
+  { lat: 34.997374, lng: 135.779312 },
+  { lat: 34.996938, lng: 135.781547 },
+  { lat: 34.995884, lng: 135.782751 },
+  place("kiyomizu"),
+] as const;
+
+const KIYOMIZU_GION_WALK_PATH = [
+  place("kiyomizu"),
+  { lat: 34.996197, lng: 135.782581 },
+  { lat: 34.998235, lng: 135.781252 },
+  { lat: 35.000852, lng: 135.780208 },
+  { lat: 35.002067, lng: 135.778144 },
+  GION,
+] as const;
+
+const GION_GINKAKU_BUS_PATH = [
+  GION,
+  { lat: 35.010746, lng: 135.777209 },
+  { lat: 35.017385, lng: 135.777591 },
+  { lat: 35.020863, lng: 135.780642 },
+  { lat: 35.021240, lng: 135.789650 },
+  GINKAKU_ARRIVAL,
+] as const;
+
+const GINKAKU_ARRIVAL_WALK_PATH = [
+  GINKAKU_ARRIVAL,
+  { lat: 35.027463, lng: 135.793333 },
+  { lat: 35.027697, lng: 135.796209 },
+  place("ginkaku"),
+] as const;
+
+const GINKAKU_DEPARTURE_WALK_PATH = [
+  place("ginkaku"),
+  { lat: 35.027697, lng: 135.796209 },
+  { lat: 35.027538, lng: 135.793145 },
+  GINKAKU_DEPARTURE,
+] as const;
+
+const GINKAKU_KINKAKU_BUS_PATH = [
+  GINKAKU_DEPARTURE,
+  { lat: 35.034680, lng: 135.791072 },
+  { lat: 35.041572, lng: 135.790145 },
+  { lat: 35.045270, lng: 135.783085 },
+  { lat: 35.044466, lng: 135.765124 },
+  { lat: 35.044284, lng: 135.748830 },
+  { lat: 35.041271, lng: 135.740207 },
+  KINKAKU_ARRIVAL,
+] as const;
+
+const KINKAKU_ARRIVAL_WALK_PATH = [
+  KINKAKU_ARRIVAL,
+  { lat: 35.039625, lng: 135.731790 },
+  place("kinkaku"),
+] as const;
+
+const KINKAKU_DEPARTURE_WALK_PATH = [
+  place("kinkaku"),
+  { lat: 35.039286, lng: 135.731638 },
+  KINKAKU_DEPARTURE,
+] as const;
+
+const KINKAKU_KYOTO_BUS_PATH = [
+  KINKAKU_DEPARTURE,
+  { lat: 35.033401, lng: 135.732850 },
+  { lat: 35.022881, lng: 135.732518 },
+  { lat: 35.011796, lng: 135.732735 },
+  { lat: 35.000123, lng: 135.733064 },
+  { lat: 34.990143, lng: 135.733142 },
+  { lat: 34.989857, lng: 135.742910 },
+  { lat: 34.989452, lng: 135.752982 },
+  KYOTO_EKI_MAE,
+  place("kyoto"),
+] as const;
+
 const MANDEOK_PUS_PATH = [
   place("mandeok"),
-  { lat: 35.2134, lng: 129.0070 },
-  { lat: 35.2146, lng: 128.9899 },
-  { lat: 35.2117, lng: 128.9760 },
-  { lat: 35.2015, lng: 128.9655 },
-  { lat: 35.1873, lng: 128.9630 },
+  { lat: 35.209244, lng: 128.999829 },
+  { lat: 35.204374, lng: 128.993858 },
+  { lat: 35.210587, lng: 128.983969 },
+  { lat: 35.211812, lng: 128.974049 },
+  { lat: 35.204089, lng: 128.974081 },
+  { lat: 35.189325, lng: 128.960637 },
+  { lat: 35.180308, lng: 128.957887 },
+  { lat: 35.169234, lng: 128.959683 },
+  { lat: 35.164438, lng: 128.946997 },
+  { lat: 35.167772, lng: 128.944855 },
+  { lat: 35.162037, lng: 128.941030 },
+  { lat: 35.162075, lng: 128.935399 },
+  { lat: 35.176786, lng: 128.934474 },
   place("busan"),
 ] as const;
 
 const SUWON_ICN_PATH = [
   place("suwon"),
-  { lat: 37.2668, lng: 126.9590 },
-  { lat: 37.3100, lng: 126.7900 },
-  { lat: 37.3650, lng: 126.7000 },
-  { lat: 37.3910, lng: 126.6320 },
-  { lat: 37.4130, lng: 126.5660 },
-  { lat: 37.4420, lng: 126.4810 },
+  { lat: 37.263749, lng: 127.023637 },
+  { lat: 37.260391, lng: 127.022287 },
+  { lat: 37.264130, lng: 127.002094 },
+  { lat: 37.258112, lng: 126.982077 },
+  { lat: 37.262504, lng: 126.949054 },
+  { lat: 37.281445, lng: 126.951206 },
+  { lat: 37.290540, lng: 126.948568 },
+  { lat: 37.304342, lng: 126.933762 },
+  { lat: 37.335345, lng: 126.920681 },
+  { lat: 37.368902, lng: 126.884159 },
+  { lat: 37.393297, lng: 126.866118 },
+  { lat: 37.393555, lng: 126.860120 },
+  { lat: 37.397698, lng: 126.856619 },
+  { lat: 37.389073, lng: 126.818206 },
+  { lat: 37.388271, lng: 126.757802 },
+  { lat: 37.380789, lng: 126.735472 },
+  { lat: 37.380680, lng: 126.724320 },
+  { lat: 37.389497, lng: 126.673031 },
+  { lat: 37.408849, lng: 126.639275 },
+  { lat: 37.404817, lng: 126.595748 },
+  { lat: 37.409280, lng: 126.575315 },
+  { lat: 37.423808, lng: 126.549620 },
+  { lat: 37.470070, lng: 126.513006 },
+  { lat: 37.487516, lng: 126.485424 },
+  { lat: 37.499715, lng: 126.476050 },
+  { lat: 37.493687, lng: 126.418958 },
+  { lat: 37.486930, lng: 126.417470 },
+  { lat: 37.472807, lng: 126.429547 },
+  { lat: 37.468401, lng: 126.429710 },
+  { lat: 37.468346, lng: 126.433660 },
   place("incheon"),
 ] as const;
 
 const ICHEON_ICN_PATH = [
   place("icheon"),
-  { lat: 37.2760, lng: 127.3500 },
-  { lat: 37.2930, lng: 127.1900 },
-  { lat: 37.2860, lng: 127.0500 },
-  ...SUWON_ICN_PATH.slice(1),
+  { lat: 37.276634, lng: 127.436674 },
+  { lat: 37.291966, lng: 127.425387 },
+  { lat: 37.293968, lng: 127.419941 },
+  { lat: 37.304298, lng: 127.427250 },
+  { lat: 37.302210, lng: 127.438040 },
+  { lat: 37.312964, lng: 127.437662 },
+  { lat: 37.322350, lng: 127.419333 },
+  { lat: 37.351259, lng: 127.385582 },
+  { lat: 37.370177, lng: 127.339253 },
+  { lat: 37.372501, lng: 127.314456 },
+  { lat: 37.390683, lng: 127.261463 },
+  { lat: 37.396990, lng: 127.222260 },
+  { lat: 37.402413, lng: 127.210304 },
+  { lat: 37.403674, lng: 127.190332 },
+  { lat: 37.414858, lng: 127.161356 },
+  { lat: 37.425396, lng: 127.151180 },
+  { lat: 37.428312, lng: 127.122183 },
+  { lat: 37.418508, lng: 127.122986 },
+  { lat: 37.409125, lng: 127.115787 },
+  { lat: 37.406108, lng: 127.095441 },
+  { lat: 37.395927, lng: 127.074064 },
+  { lat: 37.392666, lng: 127.015687 },
+  { lat: 37.379601, lng: 126.977646 },
+  { lat: 37.381942, lng: 126.964387 },
+  { lat: 37.377733, lng: 126.953085 },
+  { lat: 37.379723, lng: 126.943727 },
+  { lat: 37.368574, lng: 126.871572 },
+  { lat: 37.374643, lng: 126.858503 },
+  { lat: 37.389840, lng: 126.854314 },
+  { lat: 37.397358, lng: 126.848904 },
+  { lat: 37.388948, lng: 126.817090 },
+  { lat: 37.388019, lng: 126.755429 },
+  { lat: 37.380199, lng: 126.728871 },
+  { lat: 37.389497, lng: 126.673031 },
+  { lat: 37.408849, lng: 126.639275 },
+  { lat: 37.404855, lng: 126.599028 },
+  { lat: 37.407236, lng: 126.580495 },
+  { lat: 37.422650, lng: 126.550904 },
+  { lat: 37.470070, lng: 126.513006 },
+  { lat: 37.487516, lng: 126.485424 },
+  { lat: 37.499781, lng: 126.475786 },
+  { lat: 37.493687, lng: 126.418958 },
+  { lat: 37.486930, lng: 126.417470 },
+  { lat: 37.472807, lng: 126.429547 },
+  { lat: 37.468401, lng: 126.429710 },
+  { lat: 37.468346, lng: 126.433660 },
+  place("incheon"),
 ] as const;
 
 const DAEKYEOM = ["daekyeom"] as const;
@@ -156,6 +324,17 @@ const ICHEON_TRAVELERS = ["gyuyeol", "junsu"] as const;
 const GYUJUN = ["gyujun"] as const;
 
 const rail = (key: string, pinKeys: readonly [PlaceKey, PlaceKey], path: readonly Coordinate[], transportLabel: string, color: string, outlineColor: string): MapLine => ({ key, kind: "rail", color, outlineColor, pinKeys, path, dashed: true, label: "경로 확정 전", transportLabel, travelerIds: null });
+const kyotoLine = (key: string, kind: "bus" | "walk", pinKeys: readonly [PlaceKey, PlaceKey], path: readonly Coordinate[], transportLabel: string): MapLine => ({
+  key,
+  kind,
+  ...(kind === "bus" ? { color: "#F4430A", outlineColor: "#BE5127" } : { color: "#4A0DF0", outlineColor: "#180096" }),
+  pinKeys,
+  path,
+  dashed: kind === "walk",
+  transportLabel,
+  googleDerived: true,
+  travelerIds: null,
+});
 
 export const FULL_ROUTE_LINES: readonly MapLine[] = [
   { key: "mandeok-pus", kind: "car", color: "#00B84A", outlineColor: "#007A32", pinKeys: ["mandeok", "busan"], path: MANDEOK_PUS_PATH, dashed: false, travelerIds: DAEKYEOM },
@@ -164,10 +343,20 @@ export const FULL_ROUTE_LINES: readonly MapLine[] = [
   { key: "pus-kix", kind: "flight", color: "#2563EB", pinKeys: ["busan", "kix"], path: curve(place("busan"), place("kix"), 1.1), dashed: false, travelerIds: DAEKYEOM },
   { key: "icn-kix", kind: "flight", color: "#2563EB", pinKeys: ["incheon", "kix"], path: curve(place("incheon"), place("kix"), 1.45), dashed: false, travelerIds: INCHEON_TRAVELERS },
   rail("kix-kyoto", ["kix", "kyoto"], KIX_KYOTO_PATH, "JR 하루카", "#005DCF", "#16427B"),
+  kyotoLine("kyoto-kiyomizu-bus", "bus", ["kyoto", "kiyomizu"], KYOTO_KIYOMIZU_BUS_PATH, "교토 시버스 106·206"),
+  kyotoLine("kyoto-kiyomizu-walk", "walk", ["kyoto", "kiyomizu"], KYOTO_KIYOMIZU_WALK_PATH, "도보"),
+  kyotoLine("kiyomizu-ginkaku-walk-start", "walk", ["kiyomizu", "ginkaku"], KIYOMIZU_GION_WALK_PATH, "도보"),
+  kyotoLine("kiyomizu-ginkaku-bus", "bus", ["kiyomizu", "ginkaku"], GION_GINKAKU_BUS_PATH, "교토 시버스 203"),
+  kyotoLine("kiyomizu-ginkaku-walk-end", "walk", ["kiyomizu", "ginkaku"], GINKAKU_ARRIVAL_WALK_PATH, "도보"),
+  kyotoLine("ginkaku-kinkaku-walk-start", "walk", ["ginkaku", "kinkaku"], GINKAKU_DEPARTURE_WALK_PATH, "도보"),
+  kyotoLine("ginkaku-kinkaku-bus", "bus", ["ginkaku", "kinkaku"], GINKAKU_KINKAKU_BUS_PATH, "교토 시버스 204"),
+  kyotoLine("ginkaku-kinkaku-walk-end", "walk", ["ginkaku", "kinkaku"], KINKAKU_ARRIVAL_WALK_PATH, "도보"),
+  kyotoLine("kinkaku-kyoto-walk", "walk", ["kinkaku", "kyoto"], KINKAKU_DEPARTURE_WALK_PATH, "도보"),
+  kyotoLine("kinkaku-kyoto-bus", "bus", ["kinkaku", "kyoto"], KINKAKU_KYOTO_BUS_PATH, "교토 시버스 205"),
   rail("kyoto-odawara", ["kyoto", "odawara"], KYOTO_ODAWARA_PATH, "도카이도 신칸센", "#004DA1", "#0D355F"),
   { key: "odawara-hakone", kind: "connector", color: "#E85216", outlineColor: "#8B4222", pinKeys: ["odawara", "hakone"], path: ODAWARA_HAKONE_PATH, dashed: true, transportLabel: "하코네 등산선", travelerIds: null },
   { key: "hakone-odawara", kind: "connector", color: "#E85216", outlineColor: "#8B4222", pinKeys: ["hakone", "odawara"], path: [...ODAWARA_HAKONE_PATH].reverse(), dashed: true, transportLabel: "하코네 등산선", travelerIds: null },
-  rail("odawara-tokyo", ["odawara", "ueno"], ODAWARA_UENO_PATH, "도카이도 본선", "#F18016", "#995A22"),
+  rail("odawara-tokyo", ["odawara", "ueno"], ODAWARA_UENO_PATH, "JR 도카이도 본선 · 우쓰노미야선 직결", "#F18016", "#995A22"),
   rail("tokyo-narita", ["ueno", "nrt"], UENO_NARITA_PATH, "게이세이 스카이라이너", "#1B4786", "#1D3053"),
   { key: "nrt-pus", kind: "flight", color: "#2563EB", pinKeys: ["nrt", "busan"], path: curve(place("nrt"), place("busan"), 1.1), dashed: false, travelerIds: DAEKYEOM },
   { key: "nrt-icn", kind: "flight", color: "#2563EB", pinKeys: ["nrt", "incheon"], path: curve(place("nrt"), place("incheon"), 1.45), dashed: false, travelerIds: INCHEON_TRAVELERS },
@@ -193,9 +382,9 @@ export function buildRouteLines(routes: readonly PublicRailRoute[]) {
 }
 
 const pins: Record<string, MapPin> = {
-  mandeok: { key: "mandeok", label: "만덕터널 인근", position: place("mandeok"), travelerIds: DAEKYEOM },
-  suwon: { key: "suwon", label: "수원시청", position: place("suwon"), travelerIds: GYUJUN },
-  icheon: { key: "icheon", label: "이천시청", position: place("icheon"), travelerIds: ICHEON_TRAVELERS },
+  mandeok: { key: "mandeok", position: place("mandeok"), travelerIds: DAEKYEOM },
+  suwon: { key: "suwon", position: place("suwon"), travelerIds: GYUJUN },
+  icheon: { key: "icheon", position: place("icheon"), travelerIds: ICHEON_TRAVELERS },
   busan: { key: "busan", label: "김해국제공항", position: place("busan"), travelerIds: DAEKYEOM },
   incheon: { key: "incheon", label: "인천국제공항", position: place("incheon"), travelerIds: INCHEON_TRAVELERS },
   kix: { key: "kix", label: "간사이국제공항", position: place("kix"), travelerIds: null },
@@ -227,7 +416,13 @@ function dayPins(...keys: string[]) {
 
 const days: Record<DayNumber, DayLayers> = {
   1: {
-    lines: lines("mandeok-pus", "suwon-icn", "icheon-icn", "pus-kix", "icn-kix", "kix-kyoto"),
+    lines: lines(
+      "mandeok-pus", "suwon-icn", "icheon-icn", "pus-kix", "icn-kix", "kix-kyoto",
+      "kyoto-kiyomizu-bus", "kyoto-kiyomizu-walk",
+      "kiyomizu-ginkaku-walk-start", "kiyomizu-ginkaku-bus", "kiyomizu-ginkaku-walk-end",
+      "ginkaku-kinkaku-walk-start", "ginkaku-kinkaku-bus", "ginkaku-kinkaku-walk-end",
+      "kinkaku-kyoto-walk", "kinkaku-kyoto-bus",
+    ),
     pins: dayPins("mandeok", "suwon", "icheon", "busan", "incheon", "kix", "kyoto", "kiyomizu", "kinkaku", "ginkaku"),
     stages: [
       { durationMs: CAMERA_SETTLE_MS, focusPinKeys: ["mandeok", "busan"] },
@@ -238,11 +433,41 @@ const days: Record<DayNumber, DayLayers> = {
       { durationMs: 2400, lineKeys: ["pus-kix", "icn-kix"] },
       { durationMs: CAMERA_SETTLE_MS, focusPinKeys: ["kix", "kyoto"] },
       { durationMs: 1200, lineKeys: ["kix-kyoto"] },
-      { durationMs: CAMERA_SETTLE_MS, focusPinKeys: ["kyoto", "kiyomizu", "kinkaku", "ginkaku"] },
-      { durationMs: 450, pinKey: "kiyomizu" },
-      { durationMs: 450, pinKey: "kinkaku" },
-      { durationMs: 450, pinKey: "ginkaku" },
-      { durationMs: 450, pinKey: "kyoto" },
+      { durationMs: CAMERA_SETTLE_MS, focusPinKeys: ["kyoto", "kiyomizu", "ginkaku", "kinkaku"] },
+      {
+        durationMs: 1200,
+        lineKeys: ["kyoto-kiyomizu-bus", "kyoto-kiyomizu-walk"],
+        lineTimings: {
+          "kyoto-kiyomizu-bus": { delayMs: 0, durationMs: 700 },
+          "kyoto-kiyomizu-walk": { delayMs: 700, durationMs: 500 },
+        },
+      },
+      {
+        durationMs: 1200,
+        lineKeys: ["kiyomizu-ginkaku-walk-start", "kiyomizu-ginkaku-bus", "kiyomizu-ginkaku-walk-end"],
+        lineTimings: {
+          "kiyomizu-ginkaku-walk-start": { delayMs: 0, durationMs: 450 },
+          "kiyomizu-ginkaku-bus": { delayMs: 450, durationMs: 500 },
+          "kiyomizu-ginkaku-walk-end": { delayMs: 950, durationMs: 250 },
+        },
+      },
+      {
+        durationMs: 1200,
+        lineKeys: ["ginkaku-kinkaku-walk-start", "ginkaku-kinkaku-bus", "ginkaku-kinkaku-walk-end"],
+        lineTimings: {
+          "ginkaku-kinkaku-walk-start": { delayMs: 0, durationMs: 150 },
+          "ginkaku-kinkaku-bus": { delayMs: 150, durationMs: 900 },
+          "ginkaku-kinkaku-walk-end": { delayMs: 1050, durationMs: 150 },
+        },
+      },
+      {
+        durationMs: 1200,
+        lineKeys: ["kinkaku-kyoto-walk", "kinkaku-kyoto-bus"],
+        lineTimings: {
+          "kinkaku-kyoto-walk": { delayMs: 0, durationMs: 150 },
+          "kinkaku-kyoto-bus": { delayMs: 150, durationMs: 1050 },
+        },
+      },
     ],
   },
   2: {

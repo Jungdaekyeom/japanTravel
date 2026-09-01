@@ -18,7 +18,7 @@ describe("TRIP_DEFINITION", () => {
     expect(TRIP_DEFINITION.days).toEqual([
       { day: 1, date: "2026-10-02", title: "간사이국제공항에서 교토역", summary: "부산·인천에서 KIX 도착 후 교토역 이동, 교토 명소 방문", overnight: "교토" },
       { day: 2, date: "2026-10-03", title: "교토역에서 하코네유모토역", summary: "교토역에서 오다와라역을 거쳐 하코네유모토역 이동", overnight: "하코네" },
-      { day: 3, date: "2026-10-04", title: "하코네유모토역에서 우에노", summary: "하코네유모토역에서 오다와라역을 거쳐 우에노 이동", overnight: "도쿄" },
+      { day: 3, date: "2026-10-04", title: "하코네유모토역에서 우에노", summary: "하코네유모토역에서 오다와라역을 거쳐 JR 도카이도 본선·우쓰노미야선 직결로 우에노 이동", overnight: "도쿄" },
       { day: 4, date: "2026-10-05", title: "도쿄 관광", summary: "아키하바라·센소지·긴자 관광", overnight: "도쿄" },
       { day: 5, date: "2026-10-06", title: "우에노역에서 나리타국제공항", summary: "우에노역에서 나리타국제공항 이동 후 귀국", overnight: null },
     ]);

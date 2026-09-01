@@ -31,7 +31,6 @@ export function TripPanel({ payload, selectedDay, allDaysSelected, state, focusO
           <div><p className={styles.eyebrow}>JAPAN · 2026</p><h1>4박 5일 여행</h1></div>
           <button ref={closeRef} type="button" className={styles.iconButton} aria-label="일정 패널 닫기" onClick={onClose}>‹</button>
         </header>
-        {/* 사람별 비공개 패널은 추후 별도 승인 시 이 위치에서 활성화한다. */}
         <button type="button" className={`${styles.dayButton} ${styles.allDaysButton}`} aria-current={allDaysSelected ? "true" : undefined} onClick={onSelectAll}>전체 일정</button>
         <ol className={styles.days}>
           {payload.trip.days.map((day) => (

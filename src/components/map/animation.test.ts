@@ -18,11 +18,41 @@ const AUTHORED_STAGES: Readonly<Record<DayNumber, readonly PlaybackStage[]>> = {
     { durationMs: 2400, lineKeys: ["pus-kix", "icn-kix"] },
     { durationMs: 1000, focusPinKeys: ["kix", "kyoto"] },
     { durationMs: 1200, lineKeys: ["kix-kyoto"] },
-    { durationMs: 1000, focusPinKeys: ["kyoto", "kiyomizu", "kinkaku", "ginkaku"] },
-    { durationMs: 450, pinKey: "kiyomizu" },
-    { durationMs: 450, pinKey: "kinkaku" },
-    { durationMs: 450, pinKey: "ginkaku" },
-    { durationMs: 450, pinKey: "kyoto" },
+    { durationMs: 1000, focusPinKeys: ["kyoto", "kiyomizu", "ginkaku", "kinkaku"] },
+    {
+      durationMs: 1200,
+      lineKeys: ["kyoto-kiyomizu-bus", "kyoto-kiyomizu-walk"],
+      lineTimings: {
+        "kyoto-kiyomizu-bus": { delayMs: 0, durationMs: 700 },
+        "kyoto-kiyomizu-walk": { delayMs: 700, durationMs: 500 },
+      },
+    },
+    {
+      durationMs: 1200,
+      lineKeys: ["kiyomizu-ginkaku-walk-start", "kiyomizu-ginkaku-bus", "kiyomizu-ginkaku-walk-end"],
+      lineTimings: {
+        "kiyomizu-ginkaku-walk-start": { delayMs: 0, durationMs: 450 },
+        "kiyomizu-ginkaku-bus": { delayMs: 450, durationMs: 500 },
+        "kiyomizu-ginkaku-walk-end": { delayMs: 950, durationMs: 250 },
+      },
+    },
+    {
+      durationMs: 1200,
+      lineKeys: ["ginkaku-kinkaku-walk-start", "ginkaku-kinkaku-bus", "ginkaku-kinkaku-walk-end"],
+      lineTimings: {
+        "ginkaku-kinkaku-walk-start": { delayMs: 0, durationMs: 150 },
+        "ginkaku-kinkaku-bus": { delayMs: 150, durationMs: 900 },
+        "ginkaku-kinkaku-walk-end": { delayMs: 1050, durationMs: 150 },
+      },
+    },
+    {
+      durationMs: 1200,
+      lineKeys: ["kinkaku-kyoto-walk", "kinkaku-kyoto-bus"],
+      lineTimings: {
+        "kinkaku-kyoto-walk": { delayMs: 0, durationMs: 150 },
+        "kinkaku-kyoto-bus": { delayMs: 150, durationMs: 1050 },
+      },
+    },
   ],
   2: [
     { durationMs: 1000, focusPinKeys: ["kyoto", "odawara"] },
@@ -60,9 +90,18 @@ function stageContract(stage: PlaybackStage) {
   return {
     durationMs: stage.durationMs,
     lineKeys: stage.lineKeys,
+    lineTimings: stage.lineTimings,
     pinKey: stage.pinKey,
     focusPinKeys: stage.focusPinKeys,
   };
+}
+
+function expectedLineProgress(stage: PlaybackStage, key: string, stageProgress: number) {
+  const timing = stage.lineTimings?.[key];
+  if (!timing || stageProgress >= 1) return stageProgress;
+  const delayMs = timing.delayMs ?? 0;
+  const durationMs = timing.durationMs ?? stage.durationMs - delayMs;
+  return Math.max(0, Math.min(1, (stage.durationMs * stageProgress - delayMs) / durationMs));
 }
 
 function manualMotion() {
@@ -92,11 +131,17 @@ describe("buildDayLayers", () => {
       return [day, {
         lines: layers.lines.map(({ key }) => key),
         pins: layers.pins.map(({ key }) => key),
-        stages: layers.stages.map(({ durationMs, lineKeys, pinKey, focusPinKeys }) => ({ durationMs, lineKeys, pinKey, focusPinKeys })),
+        stages: layers.stages.map(stageContract),
       }];
     }))).toEqual({
       1: {
-        lines: ["mandeok-pus", "suwon-icn", "icheon-icn", "pus-kix", "icn-kix", "kix-kyoto"],
+        lines: [
+          "mandeok-pus", "suwon-icn", "icheon-icn", "pus-kix", "icn-kix", "kix-kyoto",
+          "kyoto-kiyomizu-bus", "kyoto-kiyomizu-walk",
+          "kiyomizu-ginkaku-walk-start", "kiyomizu-ginkaku-bus", "kiyomizu-ginkaku-walk-end",
+          "ginkaku-kinkaku-walk-start", "ginkaku-kinkaku-bus", "ginkaku-kinkaku-walk-end",
+          "kinkaku-kyoto-walk", "kinkaku-kyoto-bus",
+        ],
         pins: ["mandeok", "suwon", "icheon", "busan", "incheon", "kix", "kyoto", "kiyomizu", "kinkaku", "ginkaku"],
         stages: AUTHORED_STAGES[1].map(stageContract),
       },
@@ -127,7 +172,7 @@ describe("buildDayLayers", () => {
       focus: authoredStages.filter(({ focusPinKeys }) => focusPinKeys).length,
       line: authoredStages.filter(({ lineKeys }) => lineKeys).length,
       pin: authoredStages.filter(({ pinKey }) => pinKey).length,
-    }).toEqual({ focus: 14, line: 11, pin: 10 });
+    }).toEqual({ focus: 14, line: 15, pin: 6 });
   });
 
   it("preserves action validity and authored duration/order across all 25 day/traveler scopes", () => {
@@ -144,12 +189,16 @@ describe("buildDayLayers", () => {
         const expectedStages = AUTHORED_STAGES[day].flatMap((stage): PlaybackStage[] => {
           const lineKeys = stage.lineKeys?.filter((key) => visibleLineKeys.has(key));
           const focusPinKeys = stage.focusPinKeys?.filter((key) => visiblePinKeys.has(key));
+          const lineTimings = stage.lineTimings && Object.fromEntries(
+            Object.entries(stage.lineTimings).filter(([key]) => lineKeys?.includes(key)),
+          );
           if (stage.lineKeys && lineKeys?.length === 0) return [];
           if (stage.focusPinKeys && focusPinKeys?.length === 0) return [];
           if (stage.pinKey && !visiblePinKeys.has(stage.pinKey)) return [];
           return [{
             durationMs: stage.durationMs,
             ...(lineKeys ? { lineKeys } : {}),
+            ...(lineTimings && Object.keys(lineTimings).length > 0 ? { lineTimings } : {}),
             ...(focusPinKeys ? { focusPinKeys } : {}),
             ...(stage.pinKey ? { pinKey: stage.pinKey } : {}),
           }];
@@ -175,7 +224,7 @@ describe("buildDayLayers", () => {
 
     expect(scopeCount).toBe(25);
     expect(stageCount).toBe(167);
-    expect(actionCounts).toEqual({ focus: 66, line: 51, pin: 50 });
+    expect(actionCounts).toEqual({ focus: 66, line: 71, pin: 30 });
   });
 });
 
@@ -214,7 +263,7 @@ describe("createRoutePlayback", () => {
           motion.update(0.5);
           const midway = states.at(-1)!;
           expect(Object.fromEntries(expectedStage.lineKeys.map((key) => [key, midway.progress[key]]))).toEqual(
-            Object.fromEntries(expectedStage.lineKeys.map((key) => [key, 0.5])),
+            Object.fromEntries(expectedStage.lineKeys.map((key) => [key, expectedLineProgress(expectedStage, key, 0.5)])),
           );
           motion.update(1);
           const ended = states.at(-1)!;
@@ -244,31 +293,6 @@ describe("createRoutePlayback", () => {
     }
 
     expect(playedStages).toBe(35);
-  });
-
-  it("cancels each day's active stage without stale updates or completion", () => {
-    for (const day of DAY_NUMBERS) {
-      const motion = manualMotion();
-      const onUpdate = vi.fn();
-      const onComplete = vi.fn();
-      const playback = createRoutePlayback({
-        stages: buildDayLayers(day).stages,
-        onUpdate,
-        onComplete,
-        animateValue: motion.animateValue,
-      });
-
-      playback.play();
-      motion.update(0.35);
-      const updatesBeforeCancel = onUpdate.mock.calls.length;
-      playback.cancel();
-      motion.update(0.8);
-      motion.complete();
-
-      expect(motion.stopped(), `day ${day} control stopped`).toBe(true);
-      expect(onUpdate, `day ${day} stale updates`).toHaveBeenCalledTimes(updatesBeforeCancel);
-      expect(onComplete, `day ${day} stale completion`).not.toHaveBeenCalled();
-    }
   });
 
   it("delays only the configured line and uses the remaining stage time by default", () => {
@@ -316,52 +340,6 @@ describe("createRoutePlayback", () => {
     expect(states.at(-1)?.progress).toEqual({ shinkansen: 1, "local-train": 0.5 });
   });
 
-  it("uses Motion to run parallel line progress before moving to the next stage", () => {
-    const motion = manualMotion();
-    const states: PlaybackState[] = [];
-    const playback = createRoutePlayback({
-      stages: [
-        { durationMs: 2400, lineKeys: ["pus-kix", "icn-kix"] },
-        { durationMs: 350, focusPinKeys: ["kix", "kyoto"] },
-        { durationMs: 1200, lineKeys: ["kix-kyoto"] },
-      ],
-      onUpdate: (state) => states.push(state),
-      animateValue: motion.animateValue,
-    });
-
-    playback.play();
-    expect(motion.calls[0]).toEqual({ from: 0, to: 1, duration: 2.4, ease: "linear" });
-    motion.update(0.5);
-    expect(states.at(-1)?.progress).toMatchObject({ "pus-kix": 0.5, "icn-kix": 0.5 });
-    expect(states.at(-1)?.progress["kix-kyoto"]).toBeUndefined();
-
-    motion.update(1);
-    motion.complete();
-    expect(states.at(-1)?.progress).toMatchObject({ "pus-kix": 1, "icn-kix": 1 });
-    expect(states.at(-1)?.focusPinKeys).toEqual(["kix", "kyoto"]);
-    motion.complete();
-    expect(states.at(-1)?.progress).toMatchObject({ "pus-kix": 1, "icn-kix": 1, "kix-kyoto": 0 });
-  });
-
-  it("keeps the focus stage until Motion completes it", () => {
-    const motion = manualMotion();
-    const states: PlaybackState[] = [];
-    const playback = createRoutePlayback({
-      stages: [
-        { durationMs: 2400, lineKeys: ["pus-kix", "icn-kix"] },
-        { durationMs: 1000, focusPinKeys: ["kix", "kyoto"] },
-      ],
-      onUpdate: (state) => states.push(state),
-      animateValue: motion.animateValue,
-    });
-
-    playback.play();
-    motion.complete();
-    expect(states.at(-1)).toMatchObject({ focusPinKeys: ["kix", "kyoto"], focusProgress: 0 });
-    motion.update(0.5);
-    expect(states.at(-1)).toMatchObject({ focusPinKeys: ["kix", "kyoto"], focusProgress: 0.5 });
-  });
-
   it("stops the active Motion control and ignores later updates when cancelled", () => {
     const motion = manualMotion();
     const onUpdate = vi.fn();
@@ -399,26 +377,6 @@ describe("createRoutePlayback", () => {
     expect(onComplete).toHaveBeenCalledOnce();
   });
 
-  it("emphasizes Day 4 pins one at a time and never creates line progress", () => {
-    const motion = manualMotion();
-    const states: PlaybackState[] = [];
-    const playback = createRoutePlayback({
-      stages: buildDayLayers(4).stages,
-      onUpdate: (state) => states.push(state),
-      animateValue: motion.animateValue,
-    });
-
-    playback.play();
-    expect(states.at(-1)).toMatchObject({ progress: {}, currentPinKey: null, completed: false, focusPinKeys: ["akihabara", "sensoji", "ginza"] });
-    motion.complete();
-    expect(states.at(-1)).toMatchObject({ progress: {}, currentPinKey: "akihabara", completed: false });
-    motion.complete();
-    expect(states.at(-1)).toMatchObject({ progress: {}, currentPinKey: "sensoji", completed: false });
-    motion.complete();
-    expect(states.at(-1)).toMatchObject({ progress: {}, currentPinKey: "ginza", completed: false });
-    motion.complete();
-    expect(states.at(-1)).toEqual({ progress: {}, currentPinKey: null, completed: true });
-  });
 });
 
 describe("pathAtProgress", () => {

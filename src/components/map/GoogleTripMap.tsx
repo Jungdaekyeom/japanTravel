@@ -45,6 +45,13 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
   const routeLines = useRouteLines(railRoutes);
   const showOverview = selectedDay === null && playbackRequest === 0;
   const visibleRouteLines = useMemo(() => selectedDay ? buildDayLayers(selectedDay, routeLines, ROUTE_SCHEDULES, selectedTravelerId).lines : routeLines, [routeLines, selectedDay, selectedTravelerId]);
+  const transportLegend = useMemo(() => {
+    const entries = new Map<string, MapLine>();
+    for (const line of visibleRouteLines) {
+      if (line.transportLabel) entries.set(`${line.transportLabel}:${line.color}`, line);
+    }
+    return [...entries.values()];
+  }, [visibleRouteLines]);
 
   useEffect(() => {
     if (!configured || !apiKey || !mapId) return;
@@ -71,16 +78,25 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
         const content = document.createElement("div");
         content.className = styles.marker;
         content.dataset.pinKey = pin.key;
-        content.dataset.labelVisible = String(OVERVIEW_LABEL_KEYS.has(pin.key));
+        content.dataset.hasLabel = String(Boolean(pin.label));
+        content.dataset.labelVisible = String(Boolean(pin.label) && OVERVIEW_LABEL_KEYS.has(pin.key));
         const dot = document.createElement("span");
         dot.className = styles.markerDot;
         dot.setAttribute("aria-hidden", "true");
-        const label = document.createElement("span");
-        label.className = styles.markerLabel;
-        label.textContent = pin.label;
-        content.append(dot, label);
+        content.append(dot);
+        if (pin.label) {
+          const label = document.createElement("span");
+          label.className = styles.markerLabel;
+          label.textContent = pin.label;
+          content.append(label);
+        }
         markerContent.current.set(pin.key, content);
-        return new loaded.marker.AdvancedMarkerElement({ map: nextMap, position: pin.position, title: pin.label, content });
+        return new loaded.marker.AdvancedMarkerElement({
+          map: nextMap,
+          position: pin.position,
+          ...(pin.label ? { title: pin.label } : {}),
+          content,
+        });
       });
       setLoadState("ready");
     }).catch(() => {
@@ -147,7 +163,7 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
     const showLabels = (keys: Iterable<string>) => {
       const visible = new Set(keys);
       markerContent.current.forEach((content, key) => {
-        content.dataset.labelVisible = String(visible.has(key));
+        content.dataset.labelVisible = String(content.dataset.hasLabel === "true" && visible.has(key));
       });
     };
     const alreadyCompleted = completedRequest.current === requestKey;
@@ -209,7 +225,7 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
               center: currentMap.getCenter()?.toJSON() ?? DEFAULT_CAMERA.center,
               zoom: currentMap.getZoom() ?? DEFAULT_CAMERA.zoom,
             },
-            to: cameraForPins(currentMap, selectedDay, state.focusPinKeys),
+            to: cameraForPins(currentMap, state.focusPinKeys, routeLines),
           };
         }
         if (cameraTransition && state.focusProgress !== undefined) {
@@ -254,6 +270,16 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
     <section className={styles.frame} aria-label="여행 경로 지도">
       <div ref={mapElement} className={styles.map} />
       {loadState === "loading" && <p className={styles.mapLoading} role="status">지도 불러오는 중…</p>}
+      {loadState === "ready" && selectedDay && transportLegend.length > 0 && (
+        <ul className={styles.routeLegend} aria-label={`${selectedDay}일차 교통편`}>
+          {transportLegend.map((line) => (
+            <li key={`${line.transportLabel}:${line.color}`}>
+              <span className={styles.routeLegendSwatch} style={{ backgroundColor: line.color }} aria-hidden="true" />
+              <span>{line.transportLabel}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       {loadState === "ready" && visibleRouteLines.some((line) => line.googleDerived) && <p className={styles.googleAttribution}>Powered by Google, ©2026 Google</p>}
     </section>
   );
@@ -327,7 +353,7 @@ function bounds(points: readonly { lat: number; lng: number }[]): google.maps.La
 }
 
 function fitFullRoute(map: google.maps.Map, routeLines: readonly MapLine[]) {
-  map.fitBounds(bounds(routeLines.flatMap((line) => line.path)), CAMERA_PADDING);
+  map.moveCamera(cameraForPoints(map, routeLines.flatMap((line) => line.path), CAMERA_PADDING));
 }
 
 function fitDay(map: google.maps.Map, day: DayNumber, routeLines: readonly MapLine[], selectedTravelerId: TravelerId | null) {
@@ -337,11 +363,17 @@ function fitDay(map: google.maps.Map, day: DayNumber, routeLines: readonly MapLi
   map.setCenter(centerOf(nextBounds));
 }
 
-function cameraForPins(map: google.maps.Map, day: DayNumber, pinKeys: readonly string[]): CameraFrame {
-  const selectedPins = FULL_ROUTE_PINS.filter((pin) => pinKeys.includes(pin.key));
-  const nextBounds = bounds(selectedPins.map((pin) => pin.position));
+function cameraForPins(map: google.maps.Map, pinKeys: readonly string[], routeLines: readonly MapLine[]): CameraFrame {
+  const padding = pinKeys.length === 2 && pinKeys[0] === "ueno" && pinKeys[1] === "nrt" ? 48 : CAMERA_PADDING;
+  const points = pinKeys.length === 3 && ["nrt", "busan", "incheon"].every((key) => pinKeys.includes(key))
+    ? routeLines.flatMap((line) => line.path)
+    : FULL_ROUTE_PINS.filter((pin) => pinKeys.includes(pin.key)).map((pin) => pin.position);
+  return cameraForPoints(map, points, padding);
+}
+
+function cameraForPoints(map: google.maps.Map, points: readonly Coordinate[], padding: number): CameraFrame {
+  const nextBounds = bounds(points);
   const element = map.getDiv();
-  const padding = day === 5 && pinKeys.length === 2 && pinKeys[0] === "ueno" && pinKeys[1] === "nrt" ? 48 : CAMERA_PADDING;
   const width = Math.max(1, (element.clientWidth || window.innerWidth) - padding * 2);
   const height = Math.max(1, (element.clientHeight || window.innerHeight) - padding * 2);
   const longitudeFraction = Math.max(Number.EPSILON, (nextBounds.east - nextBounds.west) / 360);

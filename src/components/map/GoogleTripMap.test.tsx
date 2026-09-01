@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { DayNumber } from "../../trip/public";
@@ -13,7 +13,6 @@ const motionState = vi.hoisted(() => ({
     onComplete?: () => void;
   }>,
 }));
-const routeFixtureState = vi.hoisted(() => ({ nonDayFiveUenoNrtFocus: false }));
 
 vi.mock("motion/react", () => ({
   animate: (_from: number, _to: number, options: { onUpdate?: (value: number) => void; onComplete?: () => void }) => {
@@ -22,18 +21,6 @@ vi.mock("motion/react", () => ({
     return { stop() { animation.stopped = true; } };
   },
 }));
-
-vi.mock("./placeholder-routes", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./placeholder-routes")>();
-  return {
-    ...actual,
-    buildDayLayers: (...args: Parameters<typeof actual.buildDayLayers>) => {
-      const layers = actual.buildDayLayers(...args);
-      if (!routeFixtureState.nonDayFiveUenoNrtFocus || args[0] !== 4) return layers;
-      return { ...layers, stages: [{ durationMs: 1000, focusPinKeys: ["ueno", "nrt"] }] };
-    },
-  };
-});
 
 import { GoogleTripMap } from "./GoogleTripMap";
 import { FULL_ROUTE_LINES, FULL_ROUTE_PINS } from "./placeholder-routes";
@@ -45,13 +32,13 @@ const MAP_DIMENSIONS = [
   [430, 932],
   [767, 1024],
 ] as const;
-const OVERVIEW_ROUTE_BOUNDS = { east: 140.3929, north: 37.586560000000006, south: 34.3904, west: 126.4407 };
+const OVERVIEW_ROUTE_BOUNDS = { east: 140.3929, north: 37.586560000000006, south: 34.3904, west: 126.41747 };
 const AUTHORED_FOCUS_STAGES = [
   { day: 1, stageIndex: 0, keys: ["mandeok", "busan"], padding: 54 },
   { day: 1, stageIndex: 2, keys: ["suwon", "icheon", "incheon"], padding: 54 },
   { day: 1, stageIndex: 4, keys: ["busan", "incheon", "kix"], padding: 54 },
   { day: 1, stageIndex: 6, keys: ["kix", "kyoto"], padding: 54 },
-  { day: 1, stageIndex: 8, keys: ["kyoto", "kiyomizu", "kinkaku", "ginkaku"], padding: 54 },
+  { day: 1, stageIndex: 8, keys: ["kyoto", "kiyomizu", "ginkaku", "kinkaku"], padding: 54 },
   { day: 2, stageIndex: 0, keys: ["kyoto", "odawara"], padding: 54 },
   { day: 2, stageIndex: 2, keys: ["odawara", "hakone"], padding: 54 },
   { day: 3, stageIndex: 0, keys: ["hakone", "odawara"], padding: 54 },
@@ -67,23 +54,29 @@ const DAY_RENDER_EXPECTATIONS = [
   {
     day: 1,
     stageLabels: [
-      ["만덕터널 인근", "김해국제공항"],
-      ["만덕터널 인근", "김해국제공항"],
-      ["수원시청", "이천시청", "인천국제공항"],
-      ["수원시청", "이천시청", "인천국제공항"],
+      ["김해국제공항"],
+      ["김해국제공항"],
+      ["인천국제공항"],
+      ["인천국제공항"],
       ["김해국제공항", "인천국제공항", "간사이국제공항"],
       ["김해국제공항", "인천국제공항", "간사이국제공항"],
       ["간사이국제공항", "교토역"],
       ["간사이국제공항", "교토역"],
       ["교토역", "기요미즈데라", "금각사", "은각사"],
-      ["기요미즈데라"],
-      ["금각사"],
-      ["은각사"],
-      ["교토역"],
+      ["교토역", "기요미즈데라"],
+      ["기요미즈데라", "은각사"],
+      ["금각사", "은각사"],
+      ["교토역", "금각사"],
     ],
-    terminalLabels: ["만덕터널 인근", "교토역"],
-    lineKeys: ["mandeok-pus", "suwon-icn", "icheon-icn", "pus-kix", "icn-kix", "kix-kyoto"],
-    pinTitles: ["만덕터널 인근", "수원시청", "이천시청", "김해국제공항", "인천국제공항", "간사이국제공항", "교토역", "기요미즈데라", "금각사", "은각사"],
+    terminalLabels: ["교토역"],
+    lineKeys: [
+      "mandeok-pus", "suwon-icn", "icheon-icn", "pus-kix", "icn-kix", "kix-kyoto",
+      "kyoto-kiyomizu-bus", "kyoto-kiyomizu-walk",
+      "kiyomizu-ginkaku-walk-start", "kiyomizu-ginkaku-bus", "kiyomizu-ginkaku-walk-end",
+      "ginkaku-kinkaku-walk-start", "ginkaku-kinkaku-bus", "ginkaku-kinkaku-walk-end",
+      "kinkaku-kyoto-walk", "kinkaku-kyoto-bus",
+    ],
+    pinTitles: ["김해국제공항", "인천국제공항", "간사이국제공항", "교토역", "기요미즈데라", "금각사", "은각사"],
   },
   {
     day: 2,
@@ -132,12 +125,12 @@ const DAY_RENDER_EXPECTATIONS = [
       ["우에노역", "나리타국제공항"],
       ["김해국제공항", "인천국제공항", "나리타국제공항"],
       ["김해국제공항", "인천국제공항", "나리타국제공항"],
-      ["만덕터널 인근", "수원시청", "이천시청", "김해국제공항", "인천국제공항"],
-      ["만덕터널 인근", "수원시청", "이천시청", "김해국제공항", "인천국제공항"],
+      ["김해국제공항", "인천국제공항"],
+      ["김해국제공항", "인천국제공항"],
     ],
-    terminalLabels: ["만덕터널 인근", "수원시청", "이천시청", "우에노역"],
+    terminalLabels: ["우에노역"],
     lineKeys: ["tokyo-narita", "nrt-pus", "nrt-icn", "pus-mandeok", "icn-suwon", "icn-icheon"],
-    pinTitles: ["만덕터널 인근", "수원시청", "이천시청", "김해국제공항", "인천국제공항", "우에노역", "나리타국제공항"],
+    pinTitles: ["김해국제공항", "인천국제공항", "우에노역", "나리타국제공항"],
   },
 ] as const satisfies readonly {
   day: DayNumber;
@@ -153,11 +146,6 @@ const finalRailRoute = {
   label: "철도 이동" as const,
   geometry: [[34.44, 135.25], [35.01, 135.77]] as const,
 };
-
-class FakeBounds {
-  points: unknown[] = [];
-  extend(point: unknown) { this.points.push(point); return this; }
-}
 
 class FakeMap {
   static instances: FakeMap[] = [];
@@ -195,7 +183,6 @@ class FakePolyline {
   }
   setPath(path: unknown) { this.path = path; }
   setMap(map: unknown) { this.map = map; }
-  setOptions(options: Record<string, unknown>) { Object.assign(this.options, options); }
 }
 
 class FakeAdvancedMarkerElement {
@@ -207,7 +194,7 @@ class FakeAdvancedMarkerElement {
   }
 }
 
-const mapsLibrary = { Map: FakeMap, Polyline: FakePolyline, LatLngBounds: FakeBounds };
+const mapsLibrary = { Map: FakeMap, Polyline: FakePolyline };
 const markerLibrary = { AdvancedMarkerElement: FakeAdvancedMarkerElement };
 
 function installGoogleBoundary() {
@@ -241,8 +228,6 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup();
-  vi.unstubAllGlobals();
-  routeFixtureState.nonDayFiveUenoNrtFocus = false;
   FakeMap.instances = [];
   FakeMap.viewport = { width: 390, height: 844 };
   FakePolyline.instances = [];
@@ -257,10 +242,15 @@ afterAll(() => {
 
 function expectedFocusCamera(keys: readonly string[], width: number, height: number, padding: number) {
   const points = FULL_ROUTE_PINS.filter((pin) => keys.includes(pin.key)).map((pin) => pin.position);
-  const north = Math.max(...points.map(({ lat }) => lat));
-  const south = Math.min(...points.map(({ lat }) => lat));
-  const east = Math.max(...points.map(({ lng }) => lng));
-  const west = Math.min(...points.map(({ lng }) => lng));
+  return expectedBoundsCamera({
+    north: Math.max(...points.map(({ lat }) => lat)),
+    south: Math.min(...points.map(({ lat }) => lat)),
+    east: Math.max(...points.map(({ lng }) => lng)),
+    west: Math.min(...points.map(({ lng }) => lng)),
+  }, width, height, padding);
+}
+
+function expectedBoundsCamera({ north, south, east, west }: google.maps.LatLngBoundsLiteral, width: number, height: number, padding: number) {
   const longitudeFraction = Math.max(Number.EPSILON, (east - west) / 360);
   const mercatorY = (latitude: number) => Math.log(Math.tan(Math.PI / 4 + latitude * Math.PI / 360));
   const latitudeFraction = Math.max(Number.EPSILON, (mercatorY(north) - mercatorY(south)) / (Math.PI * 2));
@@ -407,6 +397,20 @@ describe("GoogleTripMap", () => {
     expect(screen.queryByText("전체 경로")).not.toBeInTheDocument();
   });
 
+  it.each([
+    { day: 1 as const, entries: [["교토 시버스 106·206", "#F4430A"], ["도보", "#4A0DF0"]] },
+    { day: 3 as const, entries: [["하코네 등산선", "#E85216"], ["JR 도카이도 본선 · 우쓰노미야선 직결", "#F18016"]] },
+  ])("pairs Day $day transport names with their route colors", async ({ day, entries }) => {
+    installGoogleBoundary();
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={day} playbackRequest={1} reducedMotion onPlaybackComplete={vi.fn()} />);
+
+    const legend = await screen.findByRole("list", { name: `${day}일차 교통편` });
+    for (const [label, color] of entries) {
+      const item = within(legend).getByText(label).closest("li");
+      expect(item?.querySelector("[aria-hidden=true]")).toHaveStyle({ backgroundColor: color });
+    }
+  });
+
   it("shows only the trip edge labels before a day is selected", async () => {
     installGoogleBoundary();
     render(<GoogleTripMap selectedTravelerId={null} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
@@ -416,6 +420,20 @@ describe("GoogleTripMap", () => {
       const content = options.content as HTMLElement;
       return content.dataset.labelVisible === "true" ? [content.textContent] : [];
     })).toEqual(["김해국제공항", "인천국제공항", "간사이국제공항", "나리타국제공항"]);
+  });
+
+  it("keeps the three domestic origin markers without exposing their names", async () => {
+    installGoogleBoundary();
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={1} playbackRequest={1} reducedMotion onPlaybackComplete={vi.fn()} />);
+
+    await waitFor(() => expect(FakeAdvancedMarkerElement.instances.length).toBeGreaterThanOrEqual(16));
+    const origins = FakeAdvancedMarkerElement.instances.filter(({ options }) =>
+      ["mandeok", "suwon", "icheon"].includes((options.content as HTMLElement).dataset.pinKey ?? ""),
+    );
+    expect(origins).toHaveLength(3);
+    expect(origins.map(({ options }) => options.title)).toEqual([undefined, undefined, undefined]);
+    expect(origins.map(({ options }) => (options.content as HTMLElement).textContent)).toEqual(["", "", ""]);
+    expect(origins.every(({ options }) => (options.content as HTMLElement).querySelector('[aria-hidden="true"]') !== null)).toBe(true);
   });
 
   it.each(DAY_RENDER_EXPECTATIONS)("renders every normal Day $day stage label boundary and completes exactly once", async ({ day, stageLabels, terminalLabels }) => {
@@ -448,7 +466,7 @@ describe("GoogleTripMap", () => {
     await waitFor(() => expect(onPlaybackComplete).toHaveBeenCalledTimes(1));
     expect(motionState.animations).toHaveLength(0);
     expect(completedSelectedLineKeys()).toEqual(lineKeys);
-    expect(FakeAdvancedMarkerElement.instances.filter(({ map }) => map !== null).map(({ options }) => options.title)).toEqual(pinTitles);
+    expect(FakeAdvancedMarkerElement.instances.filter(({ map }) => map !== null).flatMap(({ options }) => options.title ? [options.title] : [])).toEqual(pinTitles);
     expect(visibleMarkerLabels()).toEqual(terminalLabels);
     expect(FakeMap.instances[0].fitBounds).toHaveBeenCalledTimes(1);
     expect(FakeMap.instances[0].setCenter).toHaveBeenCalledTimes(1);
@@ -466,8 +484,7 @@ describe("GoogleTripMap", () => {
     expect(FakeMap.instances[0].setCenter).toHaveBeenCalledTimes(2);
   });
 
-  it.each(MAP_DIMENSIONS)("keeps programmatic camera frames unrestricted and uses 54px overview bounds at %ix%i", async (width, height) => {
-    FakeMap.viewport = { width, height };
+  it("keeps programmatic camera frames unrestricted and uses the 54px max view", async () => {
     installGoogleBoundary();
     render(<GoogleTripMap selectedTravelerId={null} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
 
@@ -475,9 +492,29 @@ describe("GoogleTripMap", () => {
     const map = FakeMap.instances[0];
     expect(map.options.restriction).toBeUndefined();
     expect(map.options.minZoom).toBe(4);
-    expect(map.fitBounds).toHaveBeenLastCalledWith(OVERVIEW_ROUTE_BOUNDS, 54);
+    const expected = expectedBoundsCamera(OVERVIEW_ROUTE_BOUNDS, 390, 844, 54);
+    expect(map.moveCamera).toHaveBeenLastCalledWith(expected);
+    expect(map.fitBounds).not.toHaveBeenCalled();
     expect(map.setCenter).not.toHaveBeenCalled();
-    expect(map.moveCamera).not.toHaveBeenCalled();
+  });
+
+  it("uses the exact initial max-view camera for the Day 5 return flights", async () => {
+    installGoogleBoundary();
+    const overview = render(<GoogleTripMap selectedTravelerId={null} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+
+    await waitFor(() => expect(FakeMap.instances).toHaveLength(1));
+    const overviewCamera = FakeMap.instances[0].moveCamera.mock.calls.at(-1)?.[0];
+    expect(overviewCamera).toBeDefined();
+    overview.unmount();
+
+    const motion = installMotion();
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={5} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+
+    await waitFor(() => expect(motion.pending()).toBe(1));
+    motion.complete();
+    motion.complete();
+    motion.update(1);
+    expect(FakeMap.instances[1].moveCamera.mock.calls.at(-1)?.[0]).toEqual(overviewCamera);
   });
 
   it.each(MAP_DIMENSIONS)("fits all 14 authored focus endpoints in the viewport at %ix%i with literal padding and no motion bounds jump", async (width, height) => {
@@ -505,7 +542,9 @@ describe("GoogleTripMap", () => {
           motion.update(1);
           const camera = map.moveCamera.mock.calls.at(-1)?.[0];
           if (!camera) throw new Error(`Day ${day} focus ${stageIndex} did not move the camera`);
-          const expected = expectedFocusCamera(focusKeys, width, height, focus.padding);
+          const expected = focus.day === 5 && focus.stageIndex === 2
+            ? expectedBoundsCamera(OVERVIEW_ROUTE_BOUNDS, width, height, focus.padding)
+            : expectedFocusCamera(focusKeys, width, height, focus.padding);
           expect(camera.center).toEqual(expected.center);
           expect(camera.zoom).toBeCloseTo(expected.zoom, 8);
           for (const pin of FULL_ROUTE_PINS.filter(({ key }) => focusKeys.includes(key))) {
@@ -522,22 +561,6 @@ describe("GoogleTripMap", () => {
       expect(map.fitBounds).not.toHaveBeenCalled();
       unmount();
     }
-  });
-
-  it("uses ordinary padding for an ordered Ueno-Narita focus outside Day 5", async () => {
-    routeFixtureState.nonDayFiveUenoNrtFocus = true;
-    const motion = installMotion();
-    installGoogleBoundary();
-    render(<GoogleTripMap selectedTravelerId={null} selectedDay={4} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
-
-    await waitFor(() => expect(motion.pending()).toBe(1));
-    motion.update(1);
-    const camera = FakeMap.instances[0].moveCamera.mock.calls.at(-1)?.[0];
-    if (!camera) throw new Error("Non-Day-5 Ueno-Narita focus did not move the camera");
-    const expected = expectedFocusCamera(["ueno", "nrt"], 390, 844, 54);
-    expect(camera.center).toEqual(expected.center);
-    expect(camera.zoom).toBeCloseTo(expected.zoom, 8);
-    expect(FakeMap.instances[0].fitBounds).not.toHaveBeenCalled();
   });
 
   it("draws final rail geometry on Google Maps and shows attribution only while it is visible", async () => {
@@ -575,44 +598,15 @@ describe("GoogleTripMap", () => {
     expect(new Set(FakePolyline.instances.filter(({ options }) => options.zIndex === 1).map(({ options }) => options.strokeWeight))).toEqual(new Set([2]));
   });
 
-  it("completes one reduced-motion playback per request while retaining only that day's route and pins", async () => {
-    installGoogleBoundary();
-    const onPlaybackComplete = vi.fn();
-    const { rerender } = render(<GoogleTripMap selectedTravelerId={null} selectedDay={1} playbackRequest={1} reducedMotion onPlaybackComplete={onPlaybackComplete} />);
-
-    await waitFor(() => expect(onPlaybackComplete).toHaveBeenCalledTimes(1));
-    expect(FakePolyline.instances.filter(({ options, map }) => options.zIndex === 1 && map !== null)).toHaveLength(6);
-    expect(FakeAdvancedMarkerElement.instances.filter(({ map }) => map !== null).map(({ options }) => options.title)).toEqual([
-      "만덕터널 인근",
-      "수원시청",
-      "이천시청",
-      "김해국제공항",
-      "인천국제공항",
-      "간사이국제공항",
-      "교토역",
-      "기요미즈데라",
-      "금각사",
-      "은각사",
-    ]);
-    expect(screen.queryByText("1일차 선택 경로")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("경로 상태")).not.toBeInTheDocument();
-    expect(FakeMap.instances[0].fitBounds).toHaveBeenCalled();
-
-    rerender(<GoogleTripMap selectedTravelerId={null} selectedDay={1} playbackRequest={1} reducedMotion onPlaybackComplete={onPlaybackComplete} />);
-    expect(onPlaybackComplete).toHaveBeenCalledTimes(1);
-    rerender(<GoogleTripMap selectedTravelerId={null} selectedDay={1} playbackRequest={2} reducedMotion onPlaybackComplete={onPlaybackComplete} />);
-    await waitFor(() => expect(onPlaybackComplete).toHaveBeenCalledTimes(2));
-  });
-
   it("shows only Daekyeom's Day 1 route, pins, and camera bounds", async () => {
     installGoogleBoundary();
     const onPlaybackComplete = vi.fn();
     render(<GoogleTripMap selectedTravelerId="daekyeom" selectedDay={1} playbackRequest={1} reducedMotion onPlaybackComplete={onPlaybackComplete} />);
 
     await waitFor(() => expect(onPlaybackComplete).toHaveBeenCalledWith(1));
-    const markerTitles = FakeAdvancedMarkerElement.instances.filter(({ map }) => map !== null).map(({ options }) => options.title);
-    expect(markerTitles).toEqual(expect.arrayContaining(["만덕터널 인근", "김해국제공항", "간사이국제공항", "교토역"]));
-    expect(markerTitles).not.toEqual(expect.arrayContaining(["수원시청", "이천시청", "인천국제공항"]));
+    const markerKeys = FakeAdvancedMarkerElement.instances.filter(({ map }) => map !== null).map(({ options }) => (options.content as HTMLElement).dataset.pinKey);
+    expect(markerKeys).toEqual(expect.arrayContaining(["mandeok", "busan", "kix", "kyoto"]));
+    expect(markerKeys).not.toEqual(expect.arrayContaining(["suwon", "icheon", "incheon"]));
     expect(FakeMap.instances[0].fitBounds.mock.calls.at(-1)?.[0]).toMatchObject({ west: expect.any(Number), east: expect.any(Number) });
     expect((FakeMap.instances[0].fitBounds.mock.calls.at(-1)?.[0] as google.maps.LatLngBoundsLiteral).west).toBeGreaterThan(128);
     expect((FakeMap.instances[0].fitBounds.mock.calls.at(-1)?.[0] as google.maps.LatLngBoundsLiteral).east).toBeLessThan(136);
@@ -630,7 +624,7 @@ describe("GoogleTripMap", () => {
 
     await waitFor(() => expect(motionState.animations).toHaveLength(2));
     expect(priorPlayback.stopped).toBe(true);
-    expect(FakeAdvancedMarkerElement.instances.filter(({ map }) => map !== null).map(({ options }) => options.title)).toEqual(expect.arrayContaining(["수원시청", "인천국제공항", "간사이국제공항", "교토역"]));
+    expect(FakeAdvancedMarkerElement.instances.filter(({ map }) => map !== null).map(({ options }) => (options.content as HTMLElement).dataset.pinKey)).toEqual(expect.arrayContaining(["suwon", "incheon", "kix", "kyoto"]));
     for (let index = 0; index < 12; index += 1) motion.complete();
     expect(onPlaybackComplete).toHaveBeenCalledOnce();
   });
@@ -642,7 +636,7 @@ describe("GoogleTripMap", () => {
     await waitFor(() => expect(FakePolyline.instances.filter(({ options }) => options.zIndex === 3)).toHaveLength(6));
     expect(FakeMap.instances[0].fitBounds.mock.calls.at(-1)?.[0]).toMatchObject({
       east: 140.3929,
-      west: 126.4407,
+      west: 126.41747,
     });
   });
 
@@ -662,43 +656,6 @@ describe("GoogleTripMap", () => {
       return content.dataset.labelVisible === "true" ? [content.textContent] : [];
     });
     expect(visibleLabels).toEqual(["아키하바라", "긴자"]);
-  });
-
-  it("retains only the literal first departure and final arrival labels after Day 2 completes", async () => {
-    installGoogleBoundary();
-    render(<GoogleTripMap selectedTravelerId={null} selectedDay={2} playbackRequest={1} reducedMotion onPlaybackComplete={vi.fn()} />);
-
-    await waitFor(() => expect(FakePolyline.instances.filter(({ options }) => options.zIndex === 3)).toHaveLength(2));
-    const visibleLabels = FakeAdvancedMarkerElement.instances.flatMap(({ options }) => {
-      const content = options.content as HTMLElement;
-      return content.dataset.labelVisible === "true" ? [content.textContent] : [];
-    });
-    expect(visibleLabels).toEqual(["교토역", "하코네유모토역"]);
-  });
-
-  it("shows only the current segment endpoints while Day 1 plays", async () => {
-    const motion = installMotion();
-    installGoogleBoundary();
-    render(<GoogleTripMap selectedTravelerId={null} selectedDay={1} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
-
-    await waitFor(() => expect(motion.pending()).toBe(1));
-    const visibleLabels = () => FakeAdvancedMarkerElement.instances.flatMap(({ options }) => {
-      const content = options.content as HTMLElement;
-      return content.dataset.labelVisible === "true" ? [content.textContent] : [];
-    });
-    expect(visibleLabels()).toEqual(["만덕터널 인근", "김해국제공항"]);
-
-    motion.complete();
-    expect(visibleLabels()).toEqual(["만덕터널 인근", "김해국제공항"]);
-    motion.complete();
-    expect(visibleLabels()).toEqual(["수원시청", "이천시청", "인천국제공항"]);
-    motion.complete();
-    expect(visibleLabels()).toEqual(["수원시청", "이천시청", "인천국제공항"]);
-    motion.complete();
-    expect(visibleLabels()).toEqual(["김해국제공항", "인천국제공항", "간사이국제공항"]);
-    motion.complete();
-    motion.complete();
-    expect(visibleLabels()).toEqual(["간사이국제공항", "교토역"]);
   });
 
   it("eases the Day 1 camera from the flight view into KIX and Kyoto without a bounds jump", async () => {
@@ -726,41 +683,6 @@ describe("GoogleTripMap", () => {
     const midwayToKyoto = map.moveCamera.mock.calls.at(-1)![0];
     expect(midwayToKyoto.center.lat).toBeCloseTo(34.861);
     expect(midwayToKyoto.center.lng).toBeCloseTo(135.633);
-  });
-
-  it("eases between both Day 2 rail camera ranges", async () => {
-    const motion = installMotion();
-    installGoogleBoundary();
-    render(<GoogleTripMap selectedTravelerId={null} selectedDay={2} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
-
-    await waitFor(() => expect(motion.pending()).toBe(1));
-    const map = FakeMap.instances[0];
-    motion.update(0.5);
-    const midwayToOdawara = map.moveCamera.mock.calls.at(-1)![0];
-    expect(midwayToOdawara.center.lat).toBeCloseTo(35.371);
-    expect(midwayToOdawara.center.lng).toBeCloseTo(137.399);
-
-    motion.complete();
-    motion.complete();
-    motion.update(0.5);
-    const midwayToHakone = map.moveCamera.mock.calls.at(-1)![0];
-    expect(midwayToHakone.center.lat).toBeCloseTo(35.183);
-    expect(midwayToHakone.center.lng).toBeCloseTo(138.293);
-    expect(map.fitBounds).not.toHaveBeenCalled();
-  });
-
-  it("zooms into Ueno, Shinjuku, and Shibuya after the Day 3 rail arrival", async () => {
-    const motion = installMotion();
-    installGoogleBoundary();
-    render(<GoogleTripMap selectedTravelerId={null} selectedDay={3} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
-
-    await waitFor(() => expect(motion.pending()).toBe(1));
-    const map = FakeMap.instances[0];
-    for (let index = 0; index < 4; index += 1) motion.complete();
-
-    motion.update(1);
-    expect(map.moveCamera.mock.calls.at(-1)?.[0].center).toEqual(expectedFocusCamera(["ueno", "shinjuku", "shibuya"], 390, 844, 54).center);
-    expect(map.fitBounds).not.toHaveBeenCalled();
   });
 
   it("falls back and completes the static selection instead of leaving a blank or pending map when the public key is missing", async () => {

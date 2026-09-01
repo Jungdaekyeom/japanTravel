@@ -3,6 +3,19 @@ import { describe, expect, it } from "vitest";
 import { PUBLIC_TRIP_DEFINITION } from "../../trip/public";
 import { buildDayLayers, buildRouteLines, FULL_ROUTE_LINES, ROUTE_SCHEDULES } from "./placeholder-routes";
 
+const KYOTO_LOOP_LINE_KEYS = [
+  "kyoto-kiyomizu-bus",
+  "kyoto-kiyomizu-walk",
+  "kiyomizu-ginkaku-walk-start",
+  "kiyomizu-ginkaku-bus",
+  "kiyomizu-ginkaku-walk-end",
+  "ginkaku-kinkaku-walk-start",
+  "ginkaku-kinkaku-bus",
+  "ginkaku-kinkaku-walk-end",
+  "kinkaku-kyoto-walk",
+  "kinkaku-kyoto-bus",
+] as const;
+
 describe("placeholder route geometry", () => {
   it("starts the flight curves at the literal PUS and ICN airport coordinates", () => {
     expect(FULL_ROUTE_LINES.find(({ key }) => key === "pus-kix")?.path[0]).toEqual({ lat: 35.1796, lng: 128.9382 });
@@ -17,6 +30,7 @@ describe("placeholder route geometry", () => {
       "pus-kix",
       "icn-kix",
       "kix-kyoto",
+      ...KYOTO_LOOP_LINE_KEYS,
       "kyoto-odawara",
       "odawara-hakone",
       "hakone-odawara",
@@ -54,12 +68,101 @@ describe("placeholder route geometry", () => {
     expect(route("icn-icheon").path).toEqual([...route("icheon-icn").path].reverse());
   });
 
+  it("follows the current Naver-recommended domestic road corridors", () => {
+    const route = (key: string) => FULL_ROUTE_LINES.find((line) => line.key === key)!;
+
+    expect(route("mandeok-pus").path).toEqual(expect.arrayContaining([
+      { lat: 35.210587, lng: 128.983969 },
+      { lat: 35.169234, lng: 128.959683 },
+    ]));
+    expect(route("suwon-icn").path).toEqual(expect.arrayContaining([
+      { lat: 37.258112, lng: 126.982077 },
+      { lat: 37.389497, lng: 126.673031 },
+      { lat: 37.499715, lng: 126.47605 },
+    ]));
+    expect(route("icheon-icn").path).toEqual(expect.arrayContaining([
+      { lat: 37.428312, lng: 127.122183 },
+      { lat: 37.392666, lng: 127.015687 },
+      { lat: 37.389497, lng: 126.673031 },
+    ]));
+  });
+
+  it("animates the current Google bus-and-walk loop from Kyoto Station and back", () => {
+    const route = (key: string) => {
+      const line = FULL_ROUTE_LINES.find((candidate) => candidate.key === key);
+      expect(line, key).toBeDefined();
+      return line!;
+    };
+    const loop = KYOTO_LOOP_LINE_KEYS.map(route);
+
+    expect(loop.map(({ key, kind, transportLabel }) => ({ key, kind, transportLabel }))).toEqual([
+      { key: "kyoto-kiyomizu-bus", kind: "bus", transportLabel: "교토 시버스 106·206" },
+      { key: "kyoto-kiyomizu-walk", kind: "walk", transportLabel: "도보" },
+      { key: "kiyomizu-ginkaku-walk-start", kind: "walk", transportLabel: "도보" },
+      { key: "kiyomizu-ginkaku-bus", kind: "bus", transportLabel: "교토 시버스 203" },
+      { key: "kiyomizu-ginkaku-walk-end", kind: "walk", transportLabel: "도보" },
+      { key: "ginkaku-kinkaku-walk-start", kind: "walk", transportLabel: "도보" },
+      { key: "ginkaku-kinkaku-bus", kind: "bus", transportLabel: "교토 시버스 204" },
+      { key: "ginkaku-kinkaku-walk-end", kind: "walk", transportLabel: "도보" },
+      { key: "kinkaku-kyoto-walk", kind: "walk", transportLabel: "도보" },
+      { key: "kinkaku-kyoto-bus", kind: "bus", transportLabel: "교토 시버스 205" },
+    ]);
+    expect([...new Set(loop.filter(({ kind }) => kind === "bus").map(({ color, outlineColor }) => `${color}:${outlineColor}`))]).toEqual(["#F4430A:#BE5127"]);
+    expect([...new Set(loop.filter(({ kind }) => kind === "walk").map(({ color, outlineColor }) => `${color}:${outlineColor}`))]).toEqual(["#4A0DF0:#180096"]);
+    expect(loop.every(({ googleDerived }) => googleDerived)).toBe(true);
+
+    for (const [left, right] of [[0, 1], [2, 3], [3, 4], [5, 6], [6, 7], [8, 9]] as const) {
+      expect(loop[left].path.at(-1), `${loop[left].key} -> ${loop[right].key}`).toEqual(loop[right].path[0]);
+    }
+    expect(loop[0].path[0]).toEqual({ lat: PUBLIC_TRIP_DEFINITION.places.kyoto.latitude, lng: PUBLIC_TRIP_DEFINITION.places.kyoto.longitude });
+    expect(loop.at(-1)?.path.at(-1)).toEqual({ lat: PUBLIC_TRIP_DEFINITION.places.kyoto.latitude, lng: PUBLIC_TRIP_DEFINITION.places.kyoto.longitude });
+
+    expect(buildDayLayers(1).stages.slice(-5)).toEqual([
+      { durationMs: 1000, focusPinKeys: ["kyoto", "kiyomizu", "ginkaku", "kinkaku"] },
+      {
+        durationMs: 1200,
+        lineKeys: ["kyoto-kiyomizu-bus", "kyoto-kiyomizu-walk"],
+        lineTimings: {
+          "kyoto-kiyomizu-bus": { delayMs: 0, durationMs: 700 },
+          "kyoto-kiyomizu-walk": { delayMs: 700, durationMs: 500 },
+        },
+      },
+      {
+        durationMs: 1200,
+        lineKeys: ["kiyomizu-ginkaku-walk-start", "kiyomizu-ginkaku-bus", "kiyomizu-ginkaku-walk-end"],
+        lineTimings: {
+          "kiyomizu-ginkaku-walk-start": { delayMs: 0, durationMs: 450 },
+          "kiyomizu-ginkaku-bus": { delayMs: 450, durationMs: 500 },
+          "kiyomizu-ginkaku-walk-end": { delayMs: 950, durationMs: 250 },
+        },
+      },
+      {
+        durationMs: 1200,
+        lineKeys: ["ginkaku-kinkaku-walk-start", "ginkaku-kinkaku-bus", "ginkaku-kinkaku-walk-end"],
+        lineTimings: {
+          "ginkaku-kinkaku-walk-start": { delayMs: 0, durationMs: 150 },
+          "ginkaku-kinkaku-bus": { delayMs: 150, durationMs: 900 },
+          "ginkaku-kinkaku-walk-end": { delayMs: 1050, durationMs: 150 },
+        },
+      },
+      {
+        durationMs: 1200,
+        lineKeys: ["kinkaku-kyoto-walk", "kinkaku-kyoto-bus"],
+        lineTimings: {
+          "kinkaku-kyoto-walk": { delayMs: 0, durationMs: 150 },
+          "kinkaku-kyoto-bus": { delayMs: 150, durationMs: 1050 },
+        },
+      },
+    ]);
+  });
+
   it("plays domestic car journeys before outbound flights and after return flights", () => {
     const day1 = buildDayLayers(1);
     const day5 = buildDayLayers(5);
 
     expect(day1.lines.map(({ key }) => key)).toEqual([
       "mandeok-pus", "suwon-icn", "icheon-icn", "pus-kix", "icn-kix", "kix-kyoto",
+      ...KYOTO_LOOP_LINE_KEYS,
     ]);
     expect(day1.pins.map(({ key }) => key)).toEqual([
       "mandeok", "suwon", "icheon", "busan", "incheon", "kix", "kyoto", "kiyomizu", "kinkaku", "ginkaku",
@@ -80,10 +183,10 @@ describe("placeholder route geometry", () => {
   });
 
   it.each([
-    ["daekyeom", ["mandeok-pus", "pus-kix", "kix-kyoto"], ["tokyo-narita", "nrt-pus", "pus-mandeok"]],
-    ["gyuyeol", ["icheon-icn", "icn-kix", "kix-kyoto"], ["tokyo-narita", "nrt-icn", "icn-icheon"]],
-    ["junsu", ["icheon-icn", "icn-kix", "kix-kyoto"], ["tokyo-narita", "nrt-icn", "icn-icheon"]],
-    ["gyujun", ["suwon-icn", "icn-kix", "kix-kyoto"], ["tokyo-narita", "nrt-icn", "icn-suwon"]],
+    ["daekyeom", ["mandeok-pus", "pus-kix", "kix-kyoto", ...KYOTO_LOOP_LINE_KEYS], ["tokyo-narita", "nrt-pus", "pus-mandeok"]],
+    ["gyuyeol", ["icheon-icn", "icn-kix", "kix-kyoto", ...KYOTO_LOOP_LINE_KEYS], ["tokyo-narita", "nrt-icn", "icn-icheon"]],
+    ["junsu", ["icheon-icn", "icn-kix", "kix-kyoto", ...KYOTO_LOOP_LINE_KEYS], ["tokyo-narita", "nrt-icn", "icn-icheon"]],
+    ["gyujun", ["suwon-icn", "icn-kix", "kix-kyoto", ...KYOTO_LOOP_LINE_KEYS], ["tokyo-narita", "nrt-icn", "icn-suwon"]],
   ] as const)("filters day 1 and 5 for %s", (travelerId, day1Keys, day5Keys) => {
     expect(buildDayLayers(1, FULL_ROUTE_LINES, ROUTE_SCHEDULES, travelerId).lines.map(({ key }) => key)).toEqual(day1Keys);
     expect(buildDayLayers(5, FULL_ROUTE_LINES, ROUTE_SCHEDULES, travelerId).lines.map(({ key }) => key)).toEqual(day5Keys);
@@ -142,7 +245,7 @@ describe("placeholder route geometry", () => {
     expect(FULL_ROUTE_LINES.filter(({ kind }) => kind === "rail").map(({ key, transportLabel, label }) => ({ key, transportLabel, label }))).toEqual([
       { key: "kix-kyoto", transportLabel: "JR 하루카", label: "경로 확정 전" },
       { key: "kyoto-odawara", transportLabel: "도카이도 신칸센", label: "경로 확정 전" },
-      { key: "odawara-tokyo", transportLabel: "도카이도 본선", label: "경로 확정 전" },
+      { key: "odawara-tokyo", transportLabel: "JR 도카이도 본선 · 우쓰노미야선 직결", label: "경로 확정 전" },
       { key: "tokyo-narita", transportLabel: "게이세이 스카이라이너", label: "경로 확정 전" },
     ]);
   });
