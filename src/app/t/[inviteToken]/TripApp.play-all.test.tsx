@@ -75,6 +75,15 @@ describe("TripApp 전체 일정 재생", () => {
     fireEvent.click(complete);
 
     expect(screen.getByText("전원 전체 일정 경로 재생 완료")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "전체 일정 다시 재생" }));
+    expect(screen.getByLabelText("지도 선택")).toHaveTextContent("all:1");
+    expect(screen.getByText("전원 전체 일정 · 1일차 경로 다시 재생 중")).toBeInTheDocument();
+    for (const day of [2, 3, 4, 5]) {
+      fireEvent.click(complete);
+      expect(screen.getByLabelText("지도 선택")).toHaveTextContent(`all:${day}`);
+    }
+    fireEvent.click(complete);
+    expect(screen.getByText("전원 전체 일정 경로 재생 완료")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "전체 일정 다시 재생" })).toBeInTheDocument();
   });
 });

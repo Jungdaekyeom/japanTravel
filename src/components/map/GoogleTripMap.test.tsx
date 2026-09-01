@@ -3,6 +3,8 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import type { DayNumber } from "../../trip/public";
+
 const motionState = vi.hoisted(() => ({
   animations: [] as Array<{
     stopped: boolean;
@@ -21,7 +23,7 @@ vi.mock("motion/react", () => ({
 }));
 
 import { GoogleTripMap } from "./GoogleTripMap";
-import { FULL_ROUTE_PINS } from "./placeholder-routes";
+import { FULL_ROUTE_LINES, FULL_ROUTE_PINS } from "./placeholder-routes";
 
 const MAP_DIMENSIONS = [
   [320, 568],
@@ -36,6 +38,90 @@ const DAY_FIVE_FOCUSES: readonly { keys: readonly string[]; padding: number }[] 
   { keys: ["nrt", "busan", "incheon"], padding: 54 },
   { keys: ["busan", "incheon", "mandeok", "suwon", "icheon"], padding: 54 },
 ] as const;
+
+const DAY_RENDER_EXPECTATIONS = [
+  {
+    day: 1,
+    stageLabels: [
+      ["만덕터널 인근", "김해국제공항"],
+      ["만덕터널 인근", "김해국제공항"],
+      ["수원시청", "이천시청", "인천국제공항"],
+      ["수원시청", "이천시청", "인천국제공항"],
+      ["김해국제공항", "인천국제공항", "간사이국제공항"],
+      ["김해국제공항", "인천국제공항", "간사이국제공항"],
+      ["간사이국제공항", "교토역"],
+      ["간사이국제공항", "교토역"],
+      ["교토역", "기요미즈데라", "금각사", "은각사"],
+      ["기요미즈데라"],
+      ["금각사"],
+      ["은각사"],
+      ["교토역"],
+    ],
+    terminalLabels: ["만덕터널 인근", "교토역"],
+    lineKeys: ["mandeok-pus", "suwon-icn", "icheon-icn", "pus-kix", "icn-kix", "kix-kyoto"],
+    pinTitles: ["만덕터널 인근", "수원시청", "이천시청", "김해국제공항", "인천국제공항", "간사이국제공항", "교토역", "기요미즈데라", "금각사", "은각사"],
+  },
+  {
+    day: 2,
+    stageLabels: [
+      ["교토역", "오다와라역"],
+      ["교토역", "오다와라역"],
+      ["오다와라역", "하코네유모토역"],
+      ["오다와라역", "하코네유모토역"],
+    ],
+    terminalLabels: ["교토역", "하코네유모토역"],
+    lineKeys: ["kyoto-odawara", "odawara-hakone"],
+    pinTitles: ["교토역", "오다와라역", "하코네유모토역"],
+  },
+  {
+    day: 3,
+    stageLabels: [
+      ["오다와라역", "하코네유모토역"],
+      ["오다와라역", "하코네유모토역"],
+      ["오다와라역", "우에노역"],
+      ["오다와라역", "우에노역"],
+      ["우에노역", "신주쿠", "시부야"],
+      ["우에노역"],
+      ["신주쿠"],
+      ["시부야"],
+    ],
+    terminalLabels: ["하코네유모토역", "시부야"],
+    lineKeys: ["hakone-odawara", "odawara-tokyo"],
+    pinTitles: ["오다와라역", "하코네유모토역", "우에노역", "신주쿠", "시부야"],
+  },
+  {
+    day: 4,
+    stageLabels: [
+      ["아키하바라", "센소지", "긴자"],
+      ["아키하바라"],
+      ["센소지"],
+      ["긴자"],
+    ],
+    terminalLabels: ["아키하바라", "긴자"],
+    lineKeys: [],
+    pinTitles: ["아키하바라", "센소지", "긴자"],
+  },
+  {
+    day: 5,
+    stageLabels: [
+      ["우에노역", "나리타국제공항"],
+      ["우에노역", "나리타국제공항"],
+      ["김해국제공항", "인천국제공항", "나리타국제공항"],
+      ["김해국제공항", "인천국제공항", "나리타국제공항"],
+      ["만덕터널 인근", "수원시청", "이천시청", "김해국제공항", "인천국제공항"],
+      ["만덕터널 인근", "수원시청", "이천시청", "김해국제공항", "인천국제공항"],
+    ],
+    terminalLabels: ["만덕터널 인근", "수원시청", "이천시청", "우에노역"],
+    lineKeys: ["tokyo-narita", "nrt-pus", "nrt-icn", "pus-mandeok", "icn-suwon", "icn-icheon"],
+    pinTitles: ["만덕터널 인근", "수원시청", "이천시청", "김해국제공항", "인천국제공항", "우에노역", "나리타국제공항"],
+  },
+] as const satisfies readonly {
+  day: DayNumber;
+  stageLabels: readonly (readonly string[])[];
+  terminalLabels: readonly string[];
+  lineKeys: readonly string[];
+  pinTitles: readonly string[];
+}[];
 
 const finalRailRoute = {
   segmentKey: "kix-kyoto" as const,
@@ -168,6 +254,19 @@ function project(point: { lat: number; lng: number }, camera: { center: google.m
   return { x: x(point.lng) - x(camera.center.lng) + width / 2, y: y(point.lat) - y(camera.center.lat) + height / 2 };
 }
 
+function visibleMarkerLabels() {
+  return FakeAdvancedMarkerElement.instances.flatMap(({ options }) => {
+    const content = options.content as HTMLElement;
+    return content.dataset.labelVisible === "true" ? [content.textContent] : [];
+  });
+}
+
+function completedSelectedLineKeys() {
+  return FakePolyline.instances
+    .filter(({ options, map }) => options.zIndex === 3 && map !== null)
+    .map(({ path }) => FULL_ROUTE_LINES.find((line) => JSON.stringify(line.path) === JSON.stringify(path))?.key);
+}
+
 describe("GoogleTripMap", () => {
   it("recovers a selected-day script failure with the final overlay and no duplicate completion or replay", async () => {
     const motion = installMotion();
@@ -290,6 +389,54 @@ describe("GoogleTripMap", () => {
       const content = options.content as HTMLElement;
       return content.dataset.labelVisible === "true" ? [content.textContent] : [];
     })).toEqual(["김해국제공항", "인천국제공항", "간사이국제공항", "나리타국제공항"]);
+  });
+
+  it.each(DAY_RENDER_EXPECTATIONS)("renders every normal Day $day stage label boundary and completes exactly once", async ({ day, stageLabels, terminalLabels }) => {
+    const motion = installMotion();
+    installGoogleBoundary();
+    const onPlaybackComplete = vi.fn();
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={day} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onPlaybackComplete} />);
+
+    await waitFor(() => expect(motion.pending()).toBe(1));
+    expect(visibleMarkerLabels()).toEqual(stageLabels[0]);
+    for (const expectedLabels of stageLabels.slice(1)) {
+      motion.complete();
+      expect(visibleMarkerLabels()).toEqual(expectedLabels);
+    }
+    motion.complete();
+
+    expect(motionState.animations).toHaveLength(stageLabels.length);
+    expect(motion.pending()).toBe(0);
+    expect(visibleMarkerLabels()).toEqual(terminalLabels);
+    expect(onPlaybackComplete).toHaveBeenCalledOnce();
+    expect(onPlaybackComplete).toHaveBeenCalledWith(day);
+  });
+
+  it.each(DAY_RENDER_EXPECTATIONS)("finishes and replays reduced-motion Day $day with literal lines, pins, labels, and one fit per request", async ({ day, terminalLabels, lineKeys, pinTitles }) => {
+    installMotion();
+    installGoogleBoundary();
+    const onPlaybackComplete = vi.fn();
+    const { rerender } = render(<GoogleTripMap selectedTravelerId={null} selectedDay={day} playbackRequest={1} reducedMotion onPlaybackComplete={onPlaybackComplete} />);
+
+    await waitFor(() => expect(onPlaybackComplete).toHaveBeenCalledTimes(1));
+    expect(motionState.animations).toHaveLength(0);
+    expect(completedSelectedLineKeys()).toEqual(lineKeys);
+    expect(FakeAdvancedMarkerElement.instances.filter(({ map }) => map !== null).map(({ options }) => options.title)).toEqual(pinTitles);
+    expect(visibleMarkerLabels()).toEqual(terminalLabels);
+    expect(FakeMap.instances[0].fitBounds).toHaveBeenCalledTimes(1);
+    expect(FakeMap.instances[0].setCenter).toHaveBeenCalledTimes(1);
+
+    rerender(<GoogleTripMap selectedTravelerId={null} selectedDay={day} playbackRequest={1} reducedMotion onPlaybackComplete={onPlaybackComplete} />);
+    expect(onPlaybackComplete).toHaveBeenCalledTimes(1);
+    expect(FakeMap.instances[0].fitBounds).toHaveBeenCalledTimes(1);
+    rerender(<GoogleTripMap selectedTravelerId={null} selectedDay={day} playbackRequest={2} reducedMotion onPlaybackComplete={onPlaybackComplete} />);
+
+    await waitFor(() => expect(onPlaybackComplete).toHaveBeenCalledTimes(2));
+    expect(motionState.animations).toHaveLength(0);
+    expect(completedSelectedLineKeys()).toEqual(lineKeys);
+    expect(visibleMarkerLabels()).toEqual(terminalLabels);
+    expect(FakeMap.instances[0].fitBounds).toHaveBeenCalledTimes(2);
+    expect(FakeMap.instances[0].setCenter).toHaveBeenCalledTimes(2);
   });
 
   it.each(MAP_DIMENSIONS)("uses a soft Korea-Japan restriction and 54px overview bounds at %ix%i", async (width, height) => {
