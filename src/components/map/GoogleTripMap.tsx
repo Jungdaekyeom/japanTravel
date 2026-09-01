@@ -61,12 +61,12 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
         mapId,
         center: DEFAULT_CAMERA.center,
         zoom: DEFAULT_CAMERA.zoom,
-        minZoom: 5,
+        minZoom: 4,
         disableDefaultUI: true,
         clickableIcons: false,
         gestureHandling: "greedy",
         keyboardShortcuts: true,
-        restriction: { latLngBounds: TRIP_MAP_LIMITS, strictBounds: true },
+        restriction: { latLngBounds: TRIP_MAP_LIMITS, strictBounds: false },
       });
       map.current = nextMap;
       markers.current = FULL_ROUTE_PINS.map((pin) => {
@@ -329,7 +329,7 @@ function bounds(points: readonly { lat: number; lng: number }[]): google.maps.La
 }
 
 function fitFullRoute(map: google.maps.Map, routeLines: readonly MapLine[]) {
-  map.fitBounds(bounds(routeLines.flatMap((line) => line.path)), 36);
+  map.fitBounds(bounds(routeLines.flatMap((line) => line.path)), CAMERA_PADDING);
 }
 
 function fitDay(map: google.maps.Map, day: DayNumber, routeLines: readonly MapLine[], selectedTravelerId: TravelerId | null) {
@@ -343,11 +343,12 @@ function cameraForPins(map: google.maps.Map, pinKeys: readonly string[]): Camera
   const selectedPins = FULL_ROUTE_PINS.filter((pin) => pinKeys.includes(pin.key));
   const nextBounds = bounds(selectedPins.map((pin) => pin.position));
   const element = map.getDiv();
-  const width = Math.max(1, (element.clientWidth || window.innerWidth) - CAMERA_PADDING * 2);
-  const height = Math.max(1, (element.clientHeight || window.innerHeight) - CAMERA_PADDING * 2);
+  const padding = pinKeys.length === 2 && pinKeys.includes("ueno") && pinKeys.includes("nrt") ? 48 : CAMERA_PADDING;
+  const width = Math.max(1, (element.clientWidth || window.innerWidth) - padding * 2);
+  const height = Math.max(1, (element.clientHeight || window.innerHeight) - padding * 2);
   const longitudeFraction = Math.max(Number.EPSILON, (nextBounds.east - nextBounds.west) / 360);
   const latitudeFraction = Math.max(Number.EPSILON, (mercatorY(nextBounds.north) - mercatorY(nextBounds.south)) / (Math.PI * 2));
-  const zoom = Math.max(5, Math.min(16,
+  const zoom = Math.max(4, Math.min(16,
     Math.log2(width / 256 / longitudeFraction),
     Math.log2(height / 256 / latitudeFraction),
   ));

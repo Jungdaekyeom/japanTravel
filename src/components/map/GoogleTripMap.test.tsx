@@ -21,6 +21,21 @@ vi.mock("motion/react", () => ({
 }));
 
 import { GoogleTripMap } from "./GoogleTripMap";
+import { FULL_ROUTE_PINS } from "./placeholder-routes";
+
+const MAP_DIMENSIONS = [
+  [320, 568],
+  [360, 800],
+  [390, 844],
+  [430, 932],
+  [767, 1024],
+] as const;
+const OVERVIEW_ROUTE_BOUNDS = { east: 140.3929, north: 37.586560000000006, south: 34.3904, west: 126.4407 };
+const DAY_FIVE_FOCUSES: readonly { keys: readonly string[]; padding: number }[] = [
+  { keys: ["ueno", "nrt"], padding: 48 },
+  { keys: ["nrt", "busan", "incheon"], padding: 54 },
+  { keys: ["busan", "incheon", "mandeok", "suwon", "icheon"], padding: 54 },
+] as const;
 
 const finalRailRoute = {
   segmentKey: "kix-kyoto" as const,
@@ -36,6 +51,7 @@ class FakeBounds {
 
 class FakeMap {
   static instances: FakeMap[] = [];
+  static viewport = { width: 390, height: 844 };
   center: google.maps.LatLngLiteral;
   zoom: number;
   fitBounds = vi.fn();
@@ -50,7 +66,10 @@ class FakeMap {
   constructor(readonly element: HTMLElement, readonly options: Record<string, unknown>) {
     this.center = options.center as google.maps.LatLngLiteral;
     this.zoom = options.zoom as number;
-    Object.defineProperties(element, { clientWidth: { value: 390 }, clientHeight: { value: 844 } });
+    Object.defineProperties(element, {
+      clientWidth: { value: FakeMap.viewport.width },
+      clientHeight: { value: FakeMap.viewport.height },
+    });
     FakeMap.instances.push(this);
   }
 }
@@ -114,6 +133,7 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   FakeMap.instances = [];
+  FakeMap.viewport = { width: 390, height: 844 };
   FakePolyline.instances = [];
   FakeAdvancedMarkerElement.instances = [];
 });
@@ -123,6 +143,30 @@ afterAll(() => {
   Reflect.deleteProperty(process.env, "NEXT_PUBLIC_GOOGLE_MAP_ID");
   delete (window as unknown as { google?: unknown }).google;
 });
+
+function expectedFocusCamera(keys: readonly string[], width: number, height: number, padding: number) {
+  const points = FULL_ROUTE_PINS.filter((pin) => keys.includes(pin.key)).map((pin) => pin.position);
+  const north = Math.max(...points.map(({ lat }) => lat));
+  const south = Math.min(...points.map(({ lat }) => lat));
+  const east = Math.max(...points.map(({ lng }) => lng));
+  const west = Math.min(...points.map(({ lng }) => lng));
+  const longitudeFraction = Math.max(Number.EPSILON, (east - west) / 360);
+  const mercatorY = (latitude: number) => Math.log(Math.tan(Math.PI / 4 + latitude * Math.PI / 360));
+  const latitudeFraction = Math.max(Number.EPSILON, (mercatorY(north) - mercatorY(south)) / (Math.PI * 2));
+  const zoom = Math.max(4, Math.min(16,
+    Math.log2((width - padding * 2) / 256 / longitudeFraction),
+    Math.log2((height - padding * 2) / 256 / latitudeFraction),
+  ));
+  return { center: { lat: (north + south) / 2, lng: (east + west) / 2 }, zoom };
+}
+
+function project(point: { lat: number; lng: number }, camera: { center: google.maps.LatLngLiteral; zoom: number }, width: number, height: number) {
+  const scale = 256 * 2 ** camera.zoom;
+  const mercatorY = (latitude: number) => Math.log(Math.tan(Math.PI / 4 + latitude * Math.PI / 360));
+  const x = (longitude: number) => (longitude + 180) / 360 * scale;
+  const y = (latitude: number) => (1 - mercatorY(latitude) / Math.PI) / 2 * scale;
+  return { x: x(point.lng) - x(camera.center.lng) + width / 2, y: y(point.lat) - y(camera.center.lat) + height / 2 };
+}
 
 describe("GoogleTripMap", () => {
   it("recovers a selected-day script failure with the final overlay and no duplicate completion or replay", async () => {
@@ -248,22 +292,50 @@ describe("GoogleTripMap", () => {
     })).toEqual(["김해국제공항", "인천국제공항", "간사이국제공항", "나리타국제공항"]);
   });
 
-  it("prevents zooming or panning outside the padded Korea-Japan viewport", async () => {
+  it.each(MAP_DIMENSIONS)("uses a soft Korea-Japan restriction and 54px overview bounds at %ix%i", async (width, height) => {
+    FakeMap.viewport = { width, height };
     installGoogleBoundary();
     render(<GoogleTripMap selectedTravelerId={null} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
 
     await waitFor(() => expect(FakeMap.instances).toHaveLength(1));
-    const restriction = FakeMap.instances[0].options.restriction as google.maps.MapRestriction;
+    const map = FakeMap.instances[0];
+    const restriction = map.options.restriction as google.maps.MapRestriction;
     const limits = restriction.latLngBounds as google.maps.LatLngBoundsLiteral;
 
-    expect(restriction.strictBounds).toBe(true);
-    expect(FakeMap.instances[0].options.minZoom).toBe(5);
-    expect(limits.south).toBeGreaterThanOrEqual(18);
-    expect(limits.north).toBeLessThanOrEqual(55);
-    expect(limits.west).toBeGreaterThanOrEqual(125);
-    expect(limits.west).toBeLessThan(126.4407);
-    expect(limits.east).toBeGreaterThan(140.3929);
-    expect(limits.east).toBeLessThanOrEqual(142);
+    expect(restriction.strictBounds).toBe(false);
+    expect(map.options.minZoom).toBe(4);
+    expect(limits).toEqual({ north: 55, south: 18, west: 125.4, east: 141.4 });
+    expect(map.fitBounds).toHaveBeenLastCalledWith(OVERVIEW_ROUTE_BOUNDS, 54);
+    expect(map.setCenter).not.toHaveBeenCalled();
+    expect(map.moveCamera).not.toHaveBeenCalled();
+  });
+
+  it.each(MAP_DIMENSIONS)("fits every Day 5 focus endpoint in the viewport at %ix%i without a motion bounds jump", async (width, height) => {
+    FakeMap.viewport = { width, height };
+    const motion = installMotion();
+    installGoogleBoundary();
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={5} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+
+    await waitFor(() => expect(motion.pending()).toBe(1));
+    const map = FakeMap.instances[0];
+    for (const [index, focus] of DAY_FIVE_FOCUSES.entries()) {
+      motion.update(1);
+      const camera = map.moveCamera.mock.calls.at(-1)?.[0];
+      if (!camera) throw new Error("Day 5 focus did not move the camera");
+      const expected = expectedFocusCamera(focus.keys, width, height, focus.padding);
+      expect(camera.center).toEqual(expected.center);
+      expect(camera.zoom).toBeCloseTo(expected.zoom, 8);
+      for (const pin of FULL_ROUTE_PINS.filter(({ key }) => focus.keys.includes(key))) {
+        const screenPoint = project(pin.position, camera, width, height);
+        expect(screenPoint.x).toBeGreaterThanOrEqual(focus.padding - 0.001);
+        expect(screenPoint.x).toBeLessThanOrEqual(width - focus.padding + 0.001);
+        expect(screenPoint.y).toBeGreaterThanOrEqual(focus.padding - 0.001);
+        expect(screenPoint.y).toBeLessThanOrEqual(height - focus.padding + 0.001);
+      }
+      motion.complete();
+      if (index < DAY_FIVE_FOCUSES.length - 1) motion.complete();
+    }
+    expect(map.fitBounds).not.toHaveBeenCalled();
   });
 
   it("draws final rail geometry on Google Maps and shows attribution only while it is visible", async () => {
