@@ -1,0 +1,9 @@
+apps/owner/android/
+apps/owner/.expo/
+.superpowers/sdd/
+coverage/
+out/
+playwright-report/
+test-results/
+supabase/.temp/
+.pnpm-store/
