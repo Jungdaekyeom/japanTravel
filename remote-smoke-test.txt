@@ -1,0 +1,4 @@
+Mac mini Codex Remote smoke test
+host-path: /private/tmp/japanTravel-remote-smoke-test
+base: origin/codex/japan-trip-app
+branch: codex/remote-smoke-test
