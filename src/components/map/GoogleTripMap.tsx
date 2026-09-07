@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { DayNumber, PublicRailRoute } from "../../trip/public";
 import type { TravelerId } from "../../trip/travelers";
 import { createRoutePlayback, pathAtProgress } from "./animation";
 import { loadGoogleMaps, type GoogleMapsLibraries } from "./map-script";
 import { buildDayLayers, buildRouteLines, FULL_ROUTE_PINS, ROUTE_SCHEDULES, type Coordinate, type MapLine } from "./placeholder-routes";
-import { StaticItinerary } from "./StaticItinerary";
+import { DayOneSchedule, DayOneStatus, StaticItinerary } from "./StaticItinerary";
 import styles from "./GoogleTripMap.module.css";
 
 type GoogleTripMapProps = {
@@ -20,7 +20,7 @@ type GoogleTripMapProps = {
 };
 
 const EMPTY_RAIL_ROUTES: readonly PublicRailRoute[] = [];
-const OVERVIEW_LABEL_KEYS = new Set(["busan", "incheon", "kix", "nrt"]);
+const OVERVIEW_LABEL_KEYS = new Set(["busan", "incheon", "gimpo", "kix", "nrt"]);
 const DEFAULT_CAMERA = { center: { lat: 35.62, lng: 137.34 }, zoom: 5 } as const;
 const CAMERA_PADDING = 54;
 
@@ -30,6 +30,8 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
   const [retryKey, setRetryKey] = useState(0);
   const [retryAttempt, setRetryAttempt] = useState(0);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [statusMinute, setStatusMinute] = useState<number | null>(null);
+  const displayedMinute = useRef<number | null>(null);
   const mapElement = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
   const libraries = useRef<GoogleMapsLibraries | null>(null);
@@ -39,9 +41,16 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
   const markerContent = useRef(new Map<string, HTMLElement>());
   const playback = useRef<ReturnType<typeof createRoutePlayback> | null>(null);
   const completedRequest = useRef<string | null>(null);
+  const resizeMap = useRef<() => void>(() => {});
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAP_ID || (process.env.NODE_ENV === "production" ? undefined : "DEMO_MAP_ID");
   const configured = Boolean(apiKey && mapId);
+  const updateStatusMinute = useCallback((minute?: number) => {
+    const nextMinute = Number.isInteger(minute) ? minute! : null;
+    if (displayedMinute.current === nextMinute) return;
+    displayedMinute.current = nextMinute;
+    setStatusMinute(nextMinute);
+  }, []);
   const routeLines = useRouteLines(railRoutes);
   const showOverview = selectedDay === null && playbackRequest === 0;
   const visibleRouteLines = useMemo(() => selectedDay ? buildDayLayers(selectedDay, routeLines, ROUTE_SCHEDULES, selectedTravelerId).lines : routeLines, [routeLines, selectedDay, selectedTravelerId]);
@@ -56,6 +65,7 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
   useEffect(() => {
     if (!configured || !apiKey || !mapId) return;
     let active = true;
+    let resizeObserver: ResizeObserver | undefined;
     const currentSelectedLines = selectedLines.current;
     const currentMarkerContent = markerContent.current;
     setLoadState("loading");
@@ -67,13 +77,26 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
         mapId,
         center: DEFAULT_CAMERA.center,
         zoom: DEFAULT_CAMERA.zoom,
-        minZoom: 4,
         disableDefaultUI: true,
         clickableIcons: false,
         gestureHandling: "greedy",
-        keyboardShortcuts: true,
+        isFractionalZoomEnabled: true,
+        keyboardShortcuts: false,
       });
       map.current = nextMap;
+      if (typeof ResizeObserver !== "undefined") {
+        let width = mapElement.current.clientWidth;
+        let height = mapElement.current.clientHeight;
+        resizeObserver = new ResizeObserver(([entry]) => {
+          const nextWidth = entry?.contentRect.width ?? mapElement.current?.clientWidth ?? 0;
+          const nextHeight = entry?.contentRect.height ?? mapElement.current?.clientHeight ?? 0;
+          if (nextWidth === width && nextHeight === height) return;
+          width = nextWidth;
+          height = nextHeight;
+          resizeMap.current();
+        });
+        resizeObserver.observe(mapElement.current);
+      }
       markers.current = FULL_ROUTE_PINS.map((pin) => {
         const content = document.createElement("div");
         content.className = styles.marker;
@@ -105,6 +128,8 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
 
     return () => {
       active = false;
+      resizeObserver?.disconnect();
+      resizeMap.current = () => {};
       playback.current?.cancel();
       baseLines.current.forEach((line) => line.setMap(null));
       currentSelectedLines.forEach((lines) => lines.forEach((line) => line.setMap(null)));
@@ -124,15 +149,24 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
     const loaded = libraries.current;
     const currentBaseLines = visibleRouteLines.flatMap((line) => createPolylineLayers(loaded, currentMap, line, false, [...line.path]));
     baseLines.current = currentBaseLines;
-    if (showOverview) fitFullRoute(currentMap, routeLines);
+    const handleResize = () => fitFullRoute(currentMap, routeLines);
+    if (showOverview) {
+      fitFullRoute(currentMap, routeLines);
+      resizeMap.current = handleResize;
+    }
 
     return () => {
+      if (resizeMap.current === handleResize) resizeMap.current = () => {};
       currentBaseLines.forEach((line) => line.setMap(null));
       if (baseLines.current === currentBaseLines) baseLines.current = [];
     };
   }, [loadState, routeLines, showOverview, visibleRouteLines]);
 
   const requestKey = selectedDay && playbackRequest > 0 ? `${selectedTravelerId ?? "all"}:${selectedDay}:${playbackRequest}` : null;
+
+  useEffect(() => {
+    updateStatusMinute();
+  }, [playbackRequest, reducedMotion, selectedDay, selectedTravelerId, updateStatusMinute]);
 
   useEffect(() => {
     if ((configured && loadState !== "error") || !selectedDay || playbackRequest === 0) return;
@@ -160,8 +194,12 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
       ...stageLabelKeys(terminalStages[0], 0),
       ...stageLabelKeys(terminalStages.at(-1), 1),
     ])];
+    let visibleLabelKey: string | null = null;
     const showLabels = (keys: Iterable<string>) => {
       const visible = new Set(keys);
+      const nextVisibleLabelKey = [...visible].sort().join(":");
+      if (nextVisibleLabelKey === visibleLabelKey) return;
+      visibleLabelKey = nextVisibleLabelKey;
       markerContent.current.forEach((content, key) => {
         content.dataset.labelVisible = String(content.dataset.hasLabel === "true" && visible.has(key));
       });
@@ -180,6 +218,7 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
         pathAtProgress(line.path, alreadyCompleted ? 1 : 0),
       ));
     }
+    const renderedProgress = new Map(layers.lines.map((line) => [line.key, alreadyCompleted ? 1 : 0]));
     const selectedPinKeys = new Set(layers.pins.map((pin) => pin.key));
     markers.current.forEach((marker, index) => {
       marker.map = selectedPinKeys.has(FULL_ROUTE_PINS[index].key) ? currentMap : null;
@@ -189,8 +228,32 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
     });
     showLabels(stageLabelKeys(layers.stages[0]));
     const initialFocusPinKeys = reducedMotion ? undefined : layers.stages[0]?.focusPinKeys;
-    let focusedPinKey = "";
+    let focusedPinKeys: readonly string[] | undefined;
+    let activePinKey: string | null | undefined;
+    let intendedFocusPinKeys = alreadyCompleted ? undefined : initialFocusPinKeys;
+    let focusProgress = intendedFocusPinKeys ? 0 : 1;
+    let renderedFocusProgress: number | undefined;
+    let transitionStartProgress = 0;
     let cameraTransition: { from: CameraFrame; to: CameraFrame } | null = null;
+    const handleResize = () => {
+      if (!intendedFocusPinKeys) {
+        fitDay(currentMap, selectedDay, routeLines, selectedTravelerId);
+        return;
+      }
+      const target = cameraForPins(currentMap, intendedFocusPinKeys, routeLines);
+      if (focusProgress >= 1) {
+        currentMap.moveCamera(target);
+        cameraTransition = { from: target, to: target };
+        return;
+      }
+      cameraTransition = {
+        from: currentCamera(currentMap),
+        to: target,
+      };
+      transitionStartProgress = focusProgress;
+      renderedFocusProgress = undefined;
+    };
+    resizeMap.current = handleResize;
     if (alreadyCompleted || !initialFocusPinKeys) fitDay(currentMap, selectedDay, routeLines, selectedTravelerId);
 
     const clearSelection = () => {
@@ -205,41 +268,59 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
     };
     if (alreadyCompleted) {
       showLabels(terminalLabelKeys);
-      return clearSelection;
+      return () => {
+        if (resizeMap.current === handleResize) resizeMap.current = () => {};
+        clearSelection();
+      };
     }
 
     const routePlayback = createRoutePlayback({
       stages: layers.stages,
       reducedMotion,
       onUpdate(state) {
+        updateStatusMinute(state.currentMinute);
         showLabels(state.completed
           ? terminalLabelKeys
           : state.currentPinKey
             ? [state.currentPinKey]
             : state.focusPinKeys ?? lineLabelKeys(Object.entries(state.progress).filter(([, progress]) => progress < 1).map(([key]) => key)));
-        const nextFocusPinKey = state.focusPinKeys?.join(":") ?? "";
-        if (state.focusPinKeys && nextFocusPinKey !== focusedPinKey) {
-          focusedPinKey = nextFocusPinKey;
+        if (state.focusPinKeys && state.focusPinKeys !== focusedPinKeys) {
+          focusedPinKeys = state.focusPinKeys;
+          intendedFocusPinKeys = state.focusPinKeys;
+          focusProgress = state.focusProgress ?? 0;
+          renderedFocusProgress = undefined;
+          transitionStartProgress = 0;
           cameraTransition = {
-            from: {
-              center: currentMap.getCenter()?.toJSON() ?? DEFAULT_CAMERA.center,
-              zoom: currentMap.getZoom() ?? DEFAULT_CAMERA.zoom,
-            },
+            from: currentCamera(currentMap),
             to: cameraForPins(currentMap, state.focusPinKeys, routeLines),
           };
         }
         if (cameraTransition && state.focusProgress !== undefined) {
-          moveCamera(currentMap, cameraTransition, state.focusProgress);
+          focusProgress = state.focusProgress;
+          if (renderedFocusProgress !== focusProgress) {
+            renderedFocusProgress = focusProgress;
+            const remainingProgress = transitionStartProgress >= 1
+              ? 1
+              : Math.max(0, (focusProgress - transitionStartProgress) / (1 - transitionStartProgress));
+            moveCamera(currentMap, cameraTransition, remainingProgress);
+          }
         }
         for (const line of layers.lines) {
           const progress = state.completed ? 1 : (state.progress[line.key] ?? 0);
-          selectedLines.current.get(line.key)?.forEach((polyline) => polyline.setPath(pathAtProgress(line.path, progress)));
+          if (renderedProgress.get(line.key) === progress) continue;
+          renderedProgress.set(line.key, progress);
+          const path = pathAtProgress(line.path, progress);
+          selectedLines.current.get(line.key)?.forEach((polyline) => polyline.setPath(path));
         }
-        markerContent.current.forEach((content, key) => {
-          content.dataset.active = String(key === state.currentPinKey);
-        });
+        if (activePinKey !== state.currentPinKey) {
+          activePinKey = state.currentPinKey;
+          markerContent.current.forEach((content, key) => {
+            content.dataset.active = String(key === state.currentPinKey);
+          });
+        }
       },
       onComplete: () => {
+        updateStatusMinute();
         completedRequest.current = requestKey;
         onPlaybackComplete(selectedDay);
       },
@@ -247,10 +328,11 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
     playback.current = routePlayback;
     routePlayback.play();
     return () => {
+      if (resizeMap.current === handleResize) resizeMap.current = () => {};
       routePlayback.cancel();
       clearSelection();
     };
-  }, [loadState, onPlaybackComplete, playbackRequest, reducedMotion, requestKey, routeLines, selectedDay, selectedTravelerId]);
+  }, [loadState, onPlaybackComplete, playbackRequest, reducedMotion, requestKey, routeLines, selectedDay, selectedTravelerId, updateStatusMinute]);
 
   if (!configured || loadState === "error") {
     const message = !configured
@@ -258,7 +340,7 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
         ? `지도 설정을 다시 확인했습니다. API 키와 지도 ID를 확인해 주세요. (${retryAttempt}회)`
         : "지도 설정이 없어 정적 일정을 표시합니다."
       : "지도를 불러올 수 없어 정적 일정을 표시합니다.";
-    return <StaticItinerary selectedDay={selectedDay} message={message} onRetry={() => {
+    return <StaticItinerary selectedDay={selectedDay} selectedTravelerId={selectedTravelerId} message={message} onRetry={() => {
       setRetryAttempt((attempt) => attempt + 1);
       if (configured) {
         setLoadState("loading");
@@ -280,6 +362,8 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, selectedTraveler
           ))}
         </ul>
       )}
+      {loadState === "ready" && selectedDay === 1 && reducedMotion && playbackRequest > 0 && <DayOneSchedule selectedTravelerId={selectedTravelerId} />}
+      {loadState === "ready" && selectedDay === 1 && statusMinute !== null && <DayOneStatus minute={statusMinute} selectedTravelerId={selectedTravelerId} />}
       {loadState === "ready" && visibleRouteLines.some((line) => line.googleDerived) && <p className={styles.googleAttribution}>Powered by Google, ©2026 Google</p>}
     </section>
   );
@@ -324,20 +408,21 @@ function createPolylineLayers(
 ) {
   const zIndex = selected ? 3 : 1;
   const layers: google.maps.Polyline[] = [];
+  const renderedPath = [...path];
   if (selected && line.outlineColor) {
     layers.push(new loaded.maps.Polyline({
       ...polylineStyle(line, true),
       strokeColor: line.outlineColor,
       strokeWeight: 6,
       map,
-      path: [...path],
+      path: renderedPath,
       zIndex: zIndex - 1,
     }));
   }
   layers.push(new loaded.maps.Polyline({
     ...polylineStyle(line, selected),
     map,
-    path: [...path],
+    path: renderedPath,
     zIndex,
   }));
   return layers;
@@ -364,11 +449,13 @@ function fitDay(map: google.maps.Map, day: DayNumber, routeLines: readonly MapLi
 }
 
 function cameraForPins(map: google.maps.Map, pinKeys: readonly string[], routeLines: readonly MapLine[]): CameraFrame {
-  const padding = pinKeys.length === 2 && pinKeys[0] === "ueno" && pinKeys[1] === "nrt" ? 48 : CAMERA_PADDING;
   const points = pinKeys.length === 3 && ["nrt", "busan", "incheon"].every((key) => pinKeys.includes(key))
     ? routeLines.flatMap((line) => line.path)
-    : FULL_ROUTE_PINS.filter((pin) => pinKeys.includes(pin.key)).map((pin) => pin.position);
-  return cameraForPoints(map, points, padding);
+    : [
+      ...FULL_ROUTE_PINS.filter((pin) => pinKeys.includes(pin.key)).map((pin) => pin.position),
+      ...routeLines.filter((line) => line.pinKeys.every((key) => pinKeys.includes(key))).flatMap((line) => line.path),
+    ];
+  return cameraForPoints(map, points, CAMERA_PADDING);
 }
 
 function cameraForPoints(map: google.maps.Map, points: readonly Coordinate[], padding: number): CameraFrame {
@@ -378,10 +465,10 @@ function cameraForPoints(map: google.maps.Map, points: readonly Coordinate[], pa
   const height = Math.max(1, (element.clientHeight || window.innerHeight) - padding * 2);
   const longitudeFraction = Math.max(Number.EPSILON, (nextBounds.east - nextBounds.west) / 360);
   const latitudeFraction = Math.max(Number.EPSILON, (mercatorY(nextBounds.north) - mercatorY(nextBounds.south)) / (Math.PI * 2));
-  const zoom = Math.max(4, Math.min(16,
+  const zoom = Math.min(16,
     Math.log2(width / 256 / longitudeFraction),
     Math.log2(height / 256 / latitudeFraction),
-  ));
+  );
   const centerY = (mercatorY(nextBounds.north) + mercatorY(nextBounds.south)) / 2;
   return {
     center: {
@@ -410,4 +497,11 @@ function moveCamera(map: google.maps.Map, transition: { from: CameraFrame; to: C
     },
     zoom: transition.from.zoom + (transition.to.zoom - transition.from.zoom) * eased,
   });
+}
+
+function currentCamera(map: google.maps.Map): CameraFrame {
+  return {
+    center: map.getCenter()?.toJSON() ?? DEFAULT_CAMERA.center,
+    zoom: map.getZoom() ?? DEFAULT_CAMERA.zoom,
+  };
 }

@@ -40,9 +40,9 @@ const sharedPayload: SharedTripPayload = {
   railRoutes: [],
 };
 
-function media({ desktop = false, reduced = true } = {}) {
+function media({ reduced = true } = {}) {
   vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
-    matches: query.includes("min-width") ? desktop : query.includes("prefers-reduced-motion") ? reduced : false,
+    matches: query.includes("prefers-reduced-motion") ? reduced : false,
     media: query,
     onchange: null,
     addEventListener: vi.fn(),
@@ -69,19 +69,19 @@ afterEach(() => {
 });
 
 describe("TripApp", () => {
-  it("starts with the itinerary panel closed while the overview map remains active without moving focus", async () => {
+  it("renders the trip app with the itinerary panel closed", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => json(sharedPayload)));
 
     render(<TripApp />);
 
-    const opener = await screen.findByRole("button", { name: "일정 패널 열기" });
+    expect(screen.queryByText("휴대폰에서 접속해 주세요")).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "일정 패널 열기" })).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "여행 일정" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("지도 선택")).toHaveTextContent("all:overview:0");
     expect(screen.getByText("전체 5일 경로 표시 중")).toBeInTheDocument();
-    expect(document.activeElement).not.toBe(opener);
   });
 
-  it("opens the itinerary panel on request without refreshing or starting playback, then focuses its close control", async () => {
+  it("opens the itinerary panel on request without refreshing or starting playback", async () => {
     const fetch = vi.fn(async () => json(sharedPayload));
     vi.stubGlobal("fetch", fetch);
 
@@ -89,24 +89,24 @@ describe("TripApp", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "일정 패널 열기" }));
 
-    const close = await screen.findByRole("button", { name: "일정 패널 닫기" });
-    expect(close).toHaveFocus();
+    expect(await screen.findByRole("button", { name: "일정 패널 닫기" })).toBeInTheDocument();
     expect(screen.getByLabelText("지도 선택")).toHaveTextContent("all:overview:0");
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("restores focus to the opener after a user closes the panel", async () => {
+  it("does not force focus to the panel close control or opener", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => json(sharedPayload)));
 
     render(<TripApp />);
     const opener = await screen.findByRole("button", { name: "일정 패널 열기" });
     fireEvent.click(opener);
     const close = await screen.findByRole("button", { name: "일정 패널 닫기" });
+    expect.soft(close).not.toHaveFocus();
     vi.useFakeTimers();
     fireEvent.click(close);
     await act(async () => vi.advanceTimersByTime(0));
 
-    expect(screen.getByRole("button", { name: "일정 패널 열기" })).toHaveFocus();
+    expect.soft(screen.getByRole("button", { name: "일정 패널 열기" })).not.toHaveFocus();
     expect(screen.queryByRole("navigation", { name: "여행 일정" })).not.toBeInTheDocument();
   });
 

@@ -16,7 +16,7 @@ describe("TRIP_DEFINITION", () => {
 
   it("defines each of the five fixed daily itineraries", () => {
     expect(TRIP_DEFINITION.days).toEqual([
-      { day: 1, date: "2026-10-02", title: "간사이국제공항에서 교토역", summary: "부산·인천에서 KIX 도착 후 교토역 이동, 교토 명소 방문", overnight: "교토" },
+      { day: 1, date: "2026-10-02", title: "간사이국제공항에서 교토역", summary: "부산·김포에서 KIX 도착 후 교토역 이동, 교토 명소 방문", overnight: "교토" },
       { day: 2, date: "2026-10-03", title: "교토역에서 하코네유모토역", summary: "교토역에서 오다와라역을 거쳐 하코네유모토역 이동", overnight: "하코네" },
       { day: 3, date: "2026-10-04", title: "하코네유모토역에서 우에노", summary: "하코네유모토역에서 오다와라역을 거쳐 JR 도카이도 본선·우쓰노미야선 직결로 우에노 이동", overnight: "도쿄" },
       { day: 4, date: "2026-10-05", title: "도쿄 관광", summary: "아키하바라·센소지·긴자 관광", overnight: "도쿄" },
@@ -44,6 +44,7 @@ describe("TRIP_DEFINITION", () => {
       icheon: { name: "이천시청", latitude: 37.2723484, longitude: 127.4350167 },
       busan: { name: "김해국제공항", latitude: 35.1796, longitude: 128.9382 },
       incheon: { name: "인천국제공항", latitude: 37.4602, longitude: 126.4407 },
+      gimpo: { name: "김포국제공항", latitude: 37.5655255, longitude: 126.801378 },
       kix: { name: "간사이국제공항", latitude: 34.4347, longitude: 135.244 },
       kyoto: { name: "교토역", latitude: 34.985849, longitude: 135.758767 },
       kiyomizu: { name: "기요미즈데라", latitude: 34.994856, longitude: 135.785046 },

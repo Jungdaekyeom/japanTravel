@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-
 import type { DayNumber, SharedTripPayload } from "../trip/public";
 import styles from "./TripPanel.module.css";
 
@@ -10,26 +8,18 @@ type TripPanelProps = {
   selectedDay: DayNumber | null;
   allDaysSelected: boolean;
   state: "open" | "closing";
-  focusOnOpen: boolean;
   onSelectAll: () => void;
   onSelectDay: (day: DayNumber) => void;
   onClose: () => void;
 };
 
-export function TripPanel({ payload, selectedDay, allDaysSelected, state, focusOnOpen, onSelectAll, onSelectDay, onClose }: TripPanelProps) {
-  const closeRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!focusOnOpen) return;
-    closeRef.current?.focus();
-  }, [focusOnOpen]);
-
+export function TripPanel({ payload, selectedDay, allDaysSelected, state, onSelectAll, onSelectDay, onClose }: TripPanelProps) {
   return (
     <aside className={styles.panel} data-state={state}>
       <nav aria-label="여행 일정" data-state={state}>
         <header className={styles.panelHeader}>
           <div><p className={styles.eyebrow}>JAPAN · 2026</p><h1>4박 5일 여행</h1></div>
-          <button ref={closeRef} type="button" className={styles.iconButton} aria-label="일정 패널 닫기" onClick={onClose}>‹</button>
+          <button type="button" className={styles.iconButton} aria-label="일정 패널 닫기" onClick={onClose}>‹</button>
         </header>
         <button type="button" className={`${styles.dayButton} ${styles.allDaysButton}`} aria-current={allDaysSelected ? "true" : undefined} onClick={onSelectAll}>전체 일정</button>
         <ol className={styles.days}>

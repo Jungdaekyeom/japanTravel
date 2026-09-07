@@ -3,6 +3,15 @@ import type { PublicTraveler } from "./travelers";
 export const DAY_OPTIONS = [1, 2, 3, 4, 5] as const;
 export type DayNumber = typeof DAY_OPTIONS[number];
 
+// 2026-10-02, UTC+09:00 in both Korea and Japan. Planned times, not live flight data.
+export const DAY1_SCHEDULES = {
+  "mandeok-pus": { departureMinute: 360, arrivalMinute: 420 },
+  "suwon-gmp": { departureMinute: 405, arrivalMinute: 465 },
+  "icheon-gmp": { departureMinute: 375, arrivalMinute: 465 },
+  "pus-kix": { departureMinute: 510, arrivalMinute: 605 },
+  "gmp-kix": { departureMinute: 555, arrivalMinute: 655 },
+} as const;
+
 export const REJECTION_CATEGORIES = [
   "distance_over_50km",
   "schedule_impossible",
@@ -28,7 +37,7 @@ export type ItineraryDay = {
   summary: string;
   overnight: "교토" | "하코네" | "도쿄" | null;
 };
-export type PlaceKey = "mandeok" | "suwon" | "icheon" | "busan" | "incheon" | "kix" | "kyoto" | "kiyomizu" | "kinkaku" | "ginkaku" | "odawara" | "hakone" | "tokyo" | "ueno" | "shinjuku" | "shibuya" | "akihabara" | "sensoji" | "ginza" | "nrt";
+export type PlaceKey = "mandeok" | "suwon" | "icheon" | "busan" | "incheon" | "gimpo" | "kix" | "kyoto" | "kiyomizu" | "kinkaku" | "ginkaku" | "odawara" | "hakone" | "tokyo" | "ueno" | "shinjuku" | "shibuya" | "akihabara" | "sensoji" | "ginza" | "nrt";
 export type Place = { name: string; latitude: number; longitude: number };
 export type RailSegment = {
   key: "kix-kyoto" | "kyoto-odawara" | "odawara-tokyo" | "tokyo-narita";
@@ -54,7 +63,7 @@ export const PUBLIC_TRIP_DEFINITION = {
   startDate: "2026-10-02",
   endDate: "2026-10-06",
   days: [
-    { day: 1, date: "2026-10-02", title: "간사이국제공항에서 교토역", summary: "부산·인천에서 KIX 도착 후 교토역 이동, 교토 명소 방문", overnight: "교토" },
+    { day: 1, date: "2026-10-02", title: "간사이국제공항에서 교토역", summary: "부산·김포에서 KIX 도착 후 교토역 이동, 교토 명소 방문", overnight: "교토" },
     { day: 2, date: "2026-10-03", title: "교토역에서 하코네유모토역", summary: "교토역에서 오다와라역을 거쳐 하코네유모토역 이동", overnight: "하코네" },
     { day: 3, date: "2026-10-04", title: "하코네유모토역에서 우에노", summary: "하코네유모토역에서 오다와라역을 거쳐 JR 도카이도 본선·우쓰노미야선 직결로 우에노 이동", overnight: "도쿄" },
     { day: 4, date: "2026-10-05", title: "도쿄 관광", summary: "아키하바라·센소지·긴자 관광", overnight: "도쿄" },
@@ -72,6 +81,7 @@ export const PUBLIC_TRIP_DEFINITION = {
     icheon: { name: "이천시청", latitude: 37.2723484, longitude: 127.4350167 },
     busan: { name: "김해국제공항", latitude: 35.1796, longitude: 128.9382 },
     incheon: { name: "인천국제공항", latitude: 37.4602, longitude: 126.4407 },
+    gimpo: { name: "김포국제공항", latitude: 37.5655255, longitude: 126.801378 },
     kix: { name: "간사이국제공항", latitude: 34.4347, longitude: 135.244 },
     kyoto: { name: "교토역", latitude: 34.985849, longitude: 135.758767 },
     kiyomizu: { name: "기요미즈데라", latitude: 34.994856, longitude: 135.785046 },

@@ -16,7 +16,7 @@ async function installPublicTripApi(page: Page) {
   });
 }
 
-test("keeps traveler panels private and plays every traveler's selected day together", async ({ page }) => {
+test("keeps private controls hidden and shows the shared departure schedule", async ({ page }) => {
   await installPublicTripApi(page);
   await page.goto("/");
 
@@ -24,16 +24,21 @@ test("keeps traveler panels private and plays every traveler's selected day toge
   await expect(page.getByRole("navigation", { name: "여행 일정" })).toHaveCount(0);
   await expect(opener).toBeVisible();
   await expect(page.getByRole("tablist", { name: "여행자 선택" })).toHaveCount(0);
-  for (const name of ["정대겸", "이규열", "박준수", "한규준"]) {
-    await expect(page.getByText(name)).toHaveCount(0);
-  }
+  await expect(page.getByRole("textbox")).toHaveCount(0);
+  const schedule = page.getByRole("region", { name: /1일차 .* 시간/ });
+  await expect(schedule).toContainText("정대겸");
+  await expect(schedule).toContainText("06:00–07:00");
+  await expect(schedule).toContainText("08:30–10:05");
+  await expect(schedule).toContainText("09:15–10:55");
+  await expect(page.getByText("수원시청")).toHaveCount(0);
+  await expect(page.getByText("이천시청")).toHaveCount(0);
   await opener.click();
-  await expect(page.getByRole("button", { name: "일정 패널 닫기" })).toBeFocused();
-  await page.getByRole("button", { name: "일정 패널 닫기" }).click();
+  const closeButton = page.getByRole("button", { name: "일정 패널 닫기" });
+  await expect(closeButton).toBeVisible();
+  await closeButton.click();
   await expect(opener).toBeVisible();
-  await expect(opener).toBeFocused();
   await opener.click();
-  await expect(page.getByRole("button", { name: "일정 패널 닫기" })).toBeFocused();
+  await expect(closeButton).toBeVisible();
   await page.getByRole("button", { name: /1일차/ }).click();
   await expect(page.getByRole("status")).toContainText("전원 · 1일차");
 });
@@ -58,7 +63,7 @@ test("keeps the closed-panel opener clickable below a portrait stale-refresh ale
   await expect(staleAlert).toHaveAttribute("role", "alert");
 
   await opener.click({ timeout: 1_000 });
-  await expect(page.getByRole("button", { name: "일정 패널 닫기" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "일정 패널 닫기" })).toBeVisible();
 });
 
 test("old token URLs discard legacy join fragments when redirecting to the tokenless root", async ({ page }) => {

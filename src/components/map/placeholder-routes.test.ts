@@ -17,18 +17,47 @@ const KYOTO_LOOP_LINE_KEYS = [
 ] as const;
 
 describe("placeholder route geometry", () => {
-  it("starts the flight curves at the literal PUS and ICN airport coordinates", () => {
+  it("uses Gimpo only on departure day and runs the entire morning on one clock", () => {
+    const departure = buildDayLayers(1);
+    expect(departure.lines.slice(0, 5).map(({ key }) => key)).toEqual([
+      "mandeok-pus", "suwon-gmp", "icheon-gmp", "pus-kix", "gmp-kix",
+    ]);
+    expect(departure.pins.map(({ key }) => key)).toContain("gimpo");
+    expect(departure.pins.map(({ key }) => key)).not.toContain("incheon");
+    expect(departure.stages[1]).toMatchObject({
+      durationMs: 13600,
+      lineTimings: {
+        "mandeok-pus": { delayMs: 0, durationMs: 4000 },
+        "icheon-gmp": { delayMs: 1000, durationMs: 6000 },
+        "suwon-gmp": { delayMs: 3000, durationMs: 4000 },
+        "pus-kix": { delayMs: 7800, durationMs: 3800 },
+        "gmp-kix": { delayMs: 9600, durationMs: 4000 },
+      },
+      clock: [
+        { elapsedMs: 0, minuteOfDay: 360 },
+        { elapsedMs: 7000, minuteOfDay: 465 },
+        { elapsedMs: 7800, minuteOfDay: 510 },
+        { elapsedMs: 13600, minuteOfDay: 655 },
+      ],
+    });
+    expect(departure.stages.reduce((total, stage) => total + stage.durationMs, 0)).toBe(22600);
+    expect(buildDayLayers(5).lines.map(({ key }) => key)).toEqual([
+      "tokyo-narita", "nrt-pus", "nrt-icn", "pus-mandeok", "icn-suwon", "icn-icheon",
+    ]);
+  });
+
+  it("starts the outbound flight curves at PUS and the GMP international terminal", () => {
     expect(FULL_ROUTE_LINES.find(({ key }) => key === "pus-kix")?.path[0]).toEqual({ lat: 35.1796, lng: 128.9382 });
-    expect(FULL_ROUTE_LINES.find(({ key }) => key === "icn-kix")?.path[0]).toEqual({ lat: 37.4602, lng: 126.4407 });
+    expect(FULL_ROUTE_LINES.find(({ key }) => key === "gmp-kix")?.path[0]).toEqual({ lat: 37.5655255, lng: 126.801378 });
   });
 
   it("keeps the complete trip visible with the five screenshot-traced rail journeys", () => {
     expect(FULL_ROUTE_LINES.map(({ key }) => key)).toEqual([
       "mandeok-pus",
-      "suwon-icn",
-      "icheon-icn",
+      "suwon-gmp",
+      "icheon-gmp",
       "pus-kix",
-      "icn-kix",
+      "gmp-kix",
       "kix-kyoto",
       ...KYOTO_LOOP_LINE_KEYS,
       "kyoto-odawara",
@@ -50,41 +79,57 @@ describe("placeholder route geometry", () => {
     ]);
   });
 
-  it("uses screenshot-green authored car routes in both directions for every traveler", () => {
+  it("keeps green car routes and preserves the separate ICN return endpoints", () => {
     const route = (key: string) => FULL_ROUTE_LINES.find((line) => line.key === key)!;
 
-    expect(["mandeok-pus", "suwon-icn", "icheon-icn"].map((key) => ({
+    expect(["mandeok-pus", "suwon-gmp", "icheon-gmp"].map((key) => ({
       key,
       kind: route(key).kind,
       color: route(key).color,
       outlineColor: route(key).outlineColor,
     }))).toEqual([
       { key: "mandeok-pus", kind: "car", color: "#00B84A", outlineColor: "#007A32" },
-      { key: "suwon-icn", kind: "car", color: "#00B84A", outlineColor: "#007A32" },
-      { key: "icheon-icn", kind: "car", color: "#00B84A", outlineColor: "#007A32" },
+      { key: "suwon-gmp", kind: "car", color: "#00B84A", outlineColor: "#007A32" },
+      { key: "icheon-gmp", kind: "car", color: "#00B84A", outlineColor: "#007A32" },
     ]);
     expect(route("pus-mandeok").path).toEqual([...route("mandeok-pus").path].reverse());
-    expect(route("icn-suwon").path).toEqual([...route("suwon-icn").path].reverse());
-    expect(route("icn-icheon").path).toEqual([...route("icheon-icn").path].reverse());
+    for (const key of ["icn-suwon", "icn-icheon"]) {
+      expect(route(key).path[0]).toEqual({ lat: 37.4602, lng: 126.4407 });
+      expect(route(key).path.length).toBeGreaterThan(20);
+    }
+    expect(route("icn-suwon").path.at(-1)).toEqual({ lat: 37.2634787, lng: 127.0287097 });
+    expect(route("icn-icheon").path.at(-1)).toEqual({ lat: 37.2723484, lng: 127.4350167 });
   });
 
-  it("follows the current Naver-recommended domestic road corridors", () => {
+  it("preserves the previously traced PUS and ICN return road corridors", () => {
     const route = (key: string) => FULL_ROUTE_LINES.find((line) => line.key === key)!;
 
     expect(route("mandeok-pus").path).toEqual(expect.arrayContaining([
       { lat: 35.210587, lng: 128.983969 },
       { lat: 35.169234, lng: 128.959683 },
     ]));
-    expect(route("suwon-icn").path).toEqual(expect.arrayContaining([
+    expect(route("icn-suwon").path).toEqual(expect.arrayContaining([
       { lat: 37.258112, lng: 126.982077 },
       { lat: 37.389497, lng: 126.673031 },
       { lat: 37.499715, lng: 126.47605 },
     ]));
-    expect(route("icheon-icn").path).toEqual(expect.arrayContaining([
+    expect(route("icn-icheon").path).toEqual(expect.arrayContaining([
       { lat: 37.428312, lng: 127.122183 },
       { lat: 37.392666, lng: 127.015687 },
       { lat: 37.389497, lng: 126.673031 },
     ]));
+  });
+
+  it("follows the verified GMP road approach instead of a straight connector or the ICN bridge", () => {
+    for (const key of ["suwon-gmp", "icheon-gmp"]) {
+      const route = FULL_ROUTE_LINES.find((line) => line.key === key)!;
+      expect(route.dashed).toBe(false);
+      expect(route.label).toBeUndefined();
+      expect(route.path.length).toBeGreaterThan(20);
+      expect(Math.max(...route.path.map(({ lat }) => lat))).toBeGreaterThan(key === "icheon-gmp" ? 37.59 : 37.566);
+      expect(Math.min(...route.path.map(({ lng }) => lng))).toBeGreaterThan(126.75);
+      expect(route.path.at(-1)).toEqual({ lat: 37.5655255, lng: 126.801378 });
+    }
   });
 
   it("animates the current Google bus-and-walk loop from Kyoto Station and back", () => {
@@ -161,19 +206,16 @@ describe("placeholder route geometry", () => {
     const day5 = buildDayLayers(5);
 
     expect(day1.lines.map(({ key }) => key)).toEqual([
-      "mandeok-pus", "suwon-icn", "icheon-icn", "pus-kix", "icn-kix", "kix-kyoto",
+      "mandeok-pus", "suwon-gmp", "icheon-gmp", "pus-kix", "gmp-kix", "kix-kyoto",
       ...KYOTO_LOOP_LINE_KEYS,
     ]);
     expect(day1.pins.map(({ key }) => key)).toEqual([
-      "mandeok", "suwon", "icheon", "busan", "incheon", "kix", "kyoto", "kiyomizu", "kinkaku", "ginkaku",
+      "mandeok", "suwon", "icheon", "busan", "gimpo", "kix", "kyoto", "kiyomizu", "kinkaku", "ginkaku",
     ]);
-    expect(day1.stages.slice(0, 6)).toEqual([
+    expect(day1.stages.slice(0, 3)).toEqual([
       { durationMs: 1000, focusPinKeys: ["mandeok", "busan"] },
-      { durationMs: 1400, lineKeys: ["mandeok-pus"] },
-      { durationMs: 1000, focusPinKeys: ["suwon", "icheon", "incheon"] },
-      { durationMs: 1400, lineKeys: ["suwon-icn", "icheon-icn"] },
-      { durationMs: 1000, focusPinKeys: ["busan", "incheon", "kix"] },
-      { durationMs: 2400, lineKeys: ["pus-kix", "icn-kix"] },
+      expect.objectContaining({ durationMs: 13600, lineKeys: ["mandeok-pus", "suwon-gmp", "icheon-gmp", "pus-kix", "gmp-kix"] }),
+      { durationMs: 1000, focusPinKeys: ["kix", "kyoto"] },
     ]);
 
     expect(day5.lines.map(({ key }) => key)).toEqual([
@@ -184,9 +226,9 @@ describe("placeholder route geometry", () => {
 
   it.each([
     ["daekyeom", ["mandeok-pus", "pus-kix", "kix-kyoto", ...KYOTO_LOOP_LINE_KEYS], ["tokyo-narita", "nrt-pus", "pus-mandeok"]],
-    ["gyuyeol", ["icheon-icn", "icn-kix", "kix-kyoto", ...KYOTO_LOOP_LINE_KEYS], ["tokyo-narita", "nrt-icn", "icn-icheon"]],
-    ["junsu", ["icheon-icn", "icn-kix", "kix-kyoto", ...KYOTO_LOOP_LINE_KEYS], ["tokyo-narita", "nrt-icn", "icn-icheon"]],
-    ["gyujun", ["suwon-icn", "icn-kix", "kix-kyoto", ...KYOTO_LOOP_LINE_KEYS], ["tokyo-narita", "nrt-icn", "icn-suwon"]],
+    ["gyuyeol", ["icheon-gmp", "gmp-kix", "kix-kyoto", ...KYOTO_LOOP_LINE_KEYS], ["tokyo-narita", "nrt-icn", "icn-icheon"]],
+    ["junsu", ["icheon-gmp", "gmp-kix", "kix-kyoto", ...KYOTO_LOOP_LINE_KEYS], ["tokyo-narita", "nrt-icn", "icn-icheon"]],
+    ["gyujun", ["suwon-gmp", "gmp-kix", "kix-kyoto", ...KYOTO_LOOP_LINE_KEYS], ["tokyo-narita", "nrt-icn", "icn-suwon"]],
   ] as const)("filters day 1 and 5 for %s", (travelerId, day1Keys, day5Keys) => {
     expect(buildDayLayers(1, FULL_ROUTE_LINES, ROUTE_SCHEDULES, travelerId).lines.map(({ key }) => key)).toEqual(day1Keys);
     expect(buildDayLayers(5, FULL_ROUTE_LINES, ROUTE_SCHEDULES, travelerId).lines.map(({ key }) => key)).toEqual(day5Keys);
@@ -211,23 +253,41 @@ describe("placeholder route geometry", () => {
     expect(layers.pins.map(({ key }) => key)).not.toEqual(expect.arrayContaining(["suwon", "icheon", "incheon"]));
     expect(layers.stages).toEqual(expect.arrayContaining([
       { durationMs: 1000, focusPinKeys: ["mandeok", "busan"] },
-      { durationMs: 1400, lineKeys: ["mandeok-pus"] },
-      { durationMs: 1000, focusPinKeys: ["busan", "kix"] },
-      { durationMs: 2400, lineKeys: ["pus-kix"] },
+      expect.objectContaining({ durationMs: 13600, lineKeys: ["mandeok-pus", "pus-kix"] }),
     ]));
     expect(layers.stages.flatMap(({ focusPinKeys = [] }) => focusPinKeys)).not.toEqual(expect.arrayContaining(["suwon", "icheon", "incheon"]));
+    expect(layers.stages.flatMap(({ cameraCues = [] }) => cameraCues).flatMap(({ focusPinKeys }) => focusPinKeys)).not.toEqual(expect.arrayContaining(["suwon", "icheon", "gimpo"]));
+    expect(layers.stages[1].lineTimings).toEqual({
+      "mandeok-pus": { delayMs: 0, durationMs: 4000 },
+      "pus-kix": { delayMs: 7800, durationMs: 3800 },
+    });
   });
 
-  it("compresses entered flight times into independent animation starts and arrivals", () => {
-    const layers = buildDayLayers(1, FULL_ROUTE_LINES, {
-      "pus-kix": { departureAt: "2026-10-02T09:00:00+09:00", arrivalAt: "2026-10-02T10:30:00+09:00" },
-      "icn-kix": { departureAt: "2026-10-02T10:00:00+09:00", arrivalAt: "2026-10-02T11:30:00+09:00" },
+  it.each([
+    ["gyujun", ["suwon", "gimpo"], "suwon-gmp", 3000, 4000],
+    ["gyuyeol", ["icheon", "gimpo"], "icheon-gmp", 1000, 6000],
+    ["junsu", ["icheon", "gimpo"], "icheon-gmp", 1000, 6000],
+  ] as const)("starts %s at their own drive without changing the shared departure clock", (id, keys, line, delayMs, durationMs) => {
+    const layers = buildDayLayers(1, FULL_ROUTE_LINES, ROUTE_SCHEDULES, id);
+    expect(layers.stages[0]).toEqual({ durationMs: 1000, focusPinKeys: keys });
+    expect(layers.stages[1].cameraCues?.[0]).toEqual({ atMs: 0, durationMs: 0, focusPinKeys: keys });
+    expect(layers.stages[1].lineTimings).toEqual({
+      [line]: { delayMs, durationMs },
+      "gmp-kix": { delayMs: 9600, durationMs: 4000 },
     });
-    const flightStage = layers.stages.find((stage) => stage.lineKeys?.includes("pus-kix"));
+    expect(layers.stages.flatMap(({ cameraCues = [] }) => cameraCues).every((cue) => cue.focusPinKeys.every((key) => layers.pins.some((pin) => pin.key === key)))).toBe(true);
+  });
+
+  it("preserves entered flight-time compression on days without a shared clock", () => {
+    const layers = buildDayLayers(5, FULL_ROUTE_LINES, {
+      "nrt-pus": { departureAt: "2026-10-06T09:00:00+09:00", arrivalAt: "2026-10-06T10:30:00+09:00" },
+      "nrt-icn": { departureAt: "2026-10-06T10:00:00+09:00", arrivalAt: "2026-10-06T11:30:00+09:00" },
+    });
+    const flightStage = layers.stages.find((stage) => stage.lineKeys?.includes("nrt-pus"));
 
     expect(flightStage?.lineTimings).toEqual({
-      "pus-kix": { delayMs: 0, durationMs: 1440 },
-      "icn-kix": { delayMs: 960, durationMs: 1440 },
+      "nrt-pus": { delayMs: 0, durationMs: 1440 },
+      "nrt-icn": { delayMs: 960, durationMs: 1440 },
     });
   });
 

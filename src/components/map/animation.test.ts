@@ -1,21 +1,45 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { DayNumber } from "../../trip/public";
 import { TRAVELERS, type TravelerId } from "../../trip/travelers";
 import { createRoutePlayback, pathAtProgress, type PlaybackStage, type PlaybackState } from "./animation";
+import { animateFrame } from "./frame-animation";
 import { buildDayLayers, FULL_ROUTE_LINES, ROUTE_SCHEDULES } from "./placeholder-routes";
 
 const DAY_NUMBERS = [1, 2, 3, 4, 5] as const;
 const TRAVELER_SCOPES: readonly (TravelerId | null)[] = [null, ...TRAVELERS.map(({ id }) => id)];
 
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
 const AUTHORED_STAGES: Readonly<Record<DayNumber, readonly PlaybackStage[]>> = {
   1: [
     { durationMs: 1000, focusPinKeys: ["mandeok", "busan"] },
-    { durationMs: 1400, lineKeys: ["mandeok-pus"] },
-    { durationMs: 1000, focusPinKeys: ["suwon", "icheon", "incheon"] },
-    { durationMs: 1400, lineKeys: ["suwon-icn", "icheon-icn"] },
-    { durationMs: 1000, focusPinKeys: ["busan", "incheon", "kix"] },
-    { durationMs: 2400, lineKeys: ["pus-kix", "icn-kix"] },
+    {
+      durationMs: 13600,
+      lineKeys: ["mandeok-pus", "suwon-gmp", "icheon-gmp", "pus-kix", "gmp-kix"],
+      lineTimings: {
+        "mandeok-pus": { delayMs: 0, durationMs: 4000 },
+        "suwon-gmp": { delayMs: 3000, durationMs: 4000 },
+        "icheon-gmp": { delayMs: 1000, durationMs: 6000 },
+        "pus-kix": { delayMs: 7800, durationMs: 3800 },
+        "gmp-kix": { delayMs: 9600, durationMs: 4000 },
+      },
+      clock: [
+        { elapsedMs: 0, minuteOfDay: 360 },
+        { elapsedMs: 7000, minuteOfDay: 465 },
+        { elapsedMs: 7800, minuteOfDay: 510 },
+        { elapsedMs: 13600, minuteOfDay: 655 },
+      ],
+      cameraCues: [
+        { atMs: 0, durationMs: 0, focusPinKeys: ["mandeok", "busan"] },
+        { atMs: 4000, durationMs: 1000, focusPinKeys: ["suwon", "icheon", "gimpo"] },
+        { atMs: 6800, durationMs: 1000, focusPinKeys: ["gimpo"] },
+        { atMs: 9600, durationMs: 1000, focusPinKeys: ["busan", "gimpo", "kix"] },
+      ],
+    },
     { durationMs: 1000, focusPinKeys: ["kix", "kyoto"] },
     { durationMs: 1200, lineKeys: ["kix-kyoto"] },
     { durationMs: 1000, focusPinKeys: ["kyoto", "kiyomizu", "ginkaku", "kinkaku"] },
@@ -93,6 +117,8 @@ function stageContract(stage: PlaybackStage) {
     lineTimings: stage.lineTimings,
     pinKey: stage.pinKey,
     focusPinKeys: stage.focusPinKeys,
+    clock: stage.clock,
+    cameraCues: stage.cameraCues,
   };
 }
 
@@ -136,13 +162,13 @@ describe("buildDayLayers", () => {
     }))).toEqual({
       1: {
         lines: [
-          "mandeok-pus", "suwon-icn", "icheon-icn", "pus-kix", "icn-kix", "kix-kyoto",
+          "mandeok-pus", "suwon-gmp", "icheon-gmp", "pus-kix", "gmp-kix", "kix-kyoto",
           "kyoto-kiyomizu-bus", "kyoto-kiyomizu-walk",
           "kiyomizu-ginkaku-walk-start", "kiyomizu-ginkaku-bus", "kiyomizu-ginkaku-walk-end",
           "ginkaku-kinkaku-walk-start", "ginkaku-kinkaku-bus", "ginkaku-kinkaku-walk-end",
           "kinkaku-kyoto-walk", "kinkaku-kyoto-bus",
         ],
-        pins: ["mandeok", "suwon", "icheon", "busan", "incheon", "kix", "kyoto", "kiyomizu", "kinkaku", "ginkaku"],
+        pins: ["mandeok", "suwon", "icheon", "busan", "gimpo", "kix", "kyoto", "kiyomizu", "kinkaku", "ginkaku"],
         stages: AUTHORED_STAGES[1].map(stageContract),
       },
       2: {
@@ -167,12 +193,12 @@ describe("buildDayLayers", () => {
       },
     });
     const authoredStages = Object.values(AUTHORED_STAGES).flat();
-    expect(authoredStages).toHaveLength(35);
+    expect(authoredStages).toHaveLength(31);
     expect({
       focus: authoredStages.filter(({ focusPinKeys }) => focusPinKeys).length,
       line: authoredStages.filter(({ lineKeys }) => lineKeys).length,
       pin: authoredStages.filter(({ pinKey }) => pinKey).length,
-    }).toEqual({ focus: 14, line: 15, pin: 6 });
+    }).toEqual({ focus: 12, line: 13, pin: 6 });
   });
 
   it("preserves action validity and authored duration/order across all 25 day/traveler scopes", () => {
@@ -189,6 +215,10 @@ describe("buildDayLayers", () => {
         const expectedStages = AUTHORED_STAGES[day].flatMap((stage): PlaybackStage[] => {
           const lineKeys = stage.lineKeys?.filter((key) => visibleLineKeys.has(key));
           const focusPinKeys = stage.focusPinKeys?.filter((key) => visiblePinKeys.has(key));
+          const cameraCues = stage.cameraCues?.flatMap((cue) => {
+            const cueFocusPinKeys = cue.focusPinKeys.filter((key) => visiblePinKeys.has(key));
+            return cueFocusPinKeys.length > 0 ? [{ ...cue, focusPinKeys: cueFocusPinKeys }] : [];
+          });
           const lineTimings = stage.lineTimings && Object.fromEntries(
             Object.entries(stage.lineTimings).filter(([key]) => lineKeys?.includes(key)),
           );
@@ -201,8 +231,23 @@ describe("buildDayLayers", () => {
             ...(lineTimings && Object.keys(lineTimings).length > 0 ? { lineTimings } : {}),
             ...(focusPinKeys ? { focusPinKeys } : {}),
             ...(stage.pinKey ? { pinKey: stage.pinKey } : {}),
+            ...(stage.clock ? { clock: stage.clock } : {}),
+            ...(cameraCues ? { cameraCues } : {}),
           }];
         });
+        if (day === 1 && expectedStages[0]?.clock) {
+          const drive = layers.lines.find(({ kind }) => kind === "car");
+          if (drive) {
+            expectedStages[0] = {
+              ...expectedStages[0],
+              cameraCues: [
+                { atMs: 0, durationMs: 0, focusPinKeys: drive.pinKeys },
+                ...expectedStages[0].cameraCues ?? [],
+              ],
+            };
+            expectedStages.unshift({ durationMs: 1000, focusPinKeys: drive.pinKeys });
+          }
+        }
 
         expect(layers.stages.map(stageContract), `${day}:${travelerId ?? "all"} duration/order`).toEqual(expectedStages.map(stageContract));
         for (const stage of layers.stages) {
@@ -218,18 +263,96 @@ describe("buildDayLayers", () => {
           expect(stage.pinKey ? visiblePinKeys.has(stage.pinKey) : true).toBe(true);
           expect(stage.focusPinKeys?.length ?? 1).toBeGreaterThan(0);
           expect(stage.focusPinKeys?.every((key) => visiblePinKeys.has(key)) ?? true).toBe(true);
+          expect(stage.cameraCues?.every(({ focusPinKeys }) => (
+            focusPinKeys.length > 0 && focusPinKeys.every((key) => visiblePinKeys.has(key))
+          )) ?? true).toBe(true);
         }
       }
     }
 
     expect(scopeCount).toBe(25);
-    expect(stageCount).toBe(167);
-    expect(actionCounts).toEqual({ focus: 66, line: 71, pin: 30 });
+    expect(stageCount).toBe(155);
+    expect(actionCounts).toEqual({ focus: 60, line: 65, pin: 30 });
   });
 });
 
 describe("createRoutePlayback", () => {
-  it("plays all 35 authored stage boundaries with literal focus, line, pin, duration, and completion behavior", () => {
+  it("keeps timed routes, clock, and camera cues on one elapsed-time axis", () => {
+    const motion = manualMotion();
+    const states: PlaybackState[] = [];
+    const morning: PlaybackStage = {
+      durationMs: 13_600,
+      lineKeys: ["mandeok-pus", "icheon-gmp", "suwon-gmp", "pus-kix", "gmp-kix"],
+      lineTimings: {
+        "mandeok-pus": { delayMs: 0, durationMs: 4_000 },
+        "icheon-gmp": { delayMs: 1_000, durationMs: 6_000 },
+        "suwon-gmp": { delayMs: 3_000, durationMs: 4_000 },
+        "pus-kix": { delayMs: 7_800, durationMs: 3_800 },
+        "gmp-kix": { delayMs: 9_600, durationMs: 4_000 },
+      },
+      clock: [
+        { elapsedMs: 0, minuteOfDay: 360 },
+        { elapsedMs: 7_000, minuteOfDay: 465 },
+        { elapsedMs: 7_800, minuteOfDay: 510 },
+        { elapsedMs: 13_600, minuteOfDay: 655 },
+      ],
+      cameraCues: [
+        { atMs: 0, durationMs: 0, focusPinKeys: ["mandeok", "busan"] },
+        { atMs: 4_000, durationMs: 1_000, focusPinKeys: ["suwon", "icheon", "gimpo"] },
+        { atMs: 6_800, durationMs: 1_000, focusPinKeys: ["gimpo"] },
+        { atMs: 9_600, durationMs: 1_000, focusPinKeys: ["busan", "gimpo", "kix"] },
+      ],
+    };
+    const playback = createRoutePlayback({
+      stages: [morning, { durationMs: 100, pinKey: "kix" }],
+      onUpdate: (state) => states.push(state),
+      animateValue: motion.animateValue,
+    });
+
+    playback.play();
+    expect(states.at(-1)).toMatchObject({
+      currentMinute: 360,
+      focusPinKeys: ["mandeok", "busan"],
+      focusProgress: 1,
+    });
+
+    motion.update(4_500 / 13_600);
+    expect(states.at(-1)).toMatchObject({
+      focusPinKeys: ["suwon", "icheon", "gimpo"],
+      focusProgress: 0.5,
+    });
+
+    motion.update(9_600 / 13_600);
+    expect(states.at(-1)).toMatchObject({
+      currentMinute: 555,
+      progress: { "pus-kix": 9 / 19, "gmp-kix": 0 },
+      focusPinKeys: ["busan", "gimpo", "kix"],
+      focusProgress: 0,
+    });
+
+    motion.update(11_600 / 13_600);
+    expect(states.at(-1)).toMatchObject({
+      currentMinute: 605,
+      progress: { "pus-kix": 1, "gmp-kix": 0.5 },
+      focusPinKeys: ["busan", "gimpo", "kix"],
+      focusProgress: 1,
+    });
+
+    motion.update(0.7 + 0.2 + 0.1);
+    expect(states.at(-1)).toMatchObject({
+      currentMinute: 655,
+      focusProgress: 1,
+    });
+
+    motion.update(1);
+    expect(states.at(-1)?.progress).toMatchObject({ "pus-kix": 1, "gmp-kix": 1 });
+    motion.complete();
+    expect(states.at(-1)).toMatchObject({ currentPinKey: "kix" });
+    expect(states.at(-1)).not.toHaveProperty("currentMinute");
+    expect(states.at(-1)).not.toHaveProperty("focusPinKeys");
+  });
+
+  it("plays all 31 authored stage boundaries with literal focus, line, pin, duration, and completion behavior", () => {
     let playedStages = 0;
 
     for (const day of DAY_NUMBERS) {
@@ -247,7 +370,7 @@ describe("createRoutePlayback", () => {
       playback.play();
       for (const [stageIndex, expectedStage] of AUTHORED_STAGES[day].entries()) {
         playedStages += 1;
-        expect(motion.calls[stageIndex], `${day}:${stageIndex} Motion contract`).toEqual({
+        expect(motion.calls[stageIndex], `${day}:${stageIndex} animation contract`).toEqual({
           from: 0,
           to: 1,
           duration: expectedStage.durationMs / 1000,
@@ -292,7 +415,7 @@ describe("createRoutePlayback", () => {
       expect(onComplete).toHaveBeenCalledOnce();
     }
 
-    expect(playedStages).toBe(35);
+    expect(playedStages).toBe(31);
   });
 
   it("delays only the configured line and uses the remaining stage time by default", () => {
@@ -340,7 +463,7 @@ describe("createRoutePlayback", () => {
     expect(states.at(-1)?.progress).toEqual({ shinkansen: 1, "local-train": 0.5 });
   });
 
-  it("stops the active Motion control and ignores later updates when cancelled", () => {
+  it("stops the active animation control and ignores later updates when cancelled", () => {
     const motion = manualMotion();
     const onUpdate = vi.fn();
     const playback = createRoutePlayback({
@@ -358,7 +481,7 @@ describe("createRoutePlayback", () => {
     expect(onUpdate).toHaveBeenCalledTimes(countBeforeCancel);
   });
 
-  it("finishes immediately without starting Motion when motion is reduced", () => {
+  it("finishes immediately without starting animation when motion is reduced", () => {
     const motion = manualMotion();
     const onComplete = vi.fn();
     const onUpdate = vi.fn();
@@ -377,13 +500,73 @@ describe("createRoutePlayback", () => {
     expect(onComplete).toHaveBeenCalledOnce();
   });
 
+  it("uses frame timestamps so default playback stays independent of display refresh rate", () => {
+    const frames = new Map<number, FrameRequestCallback>();
+    let frameId = 0;
+    vi.spyOn(performance, "now").mockReturnValue(100);
+    vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => {
+      frameId += 1;
+      frames.set(frameId, callback);
+      return frameId;
+    }));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn((id: number) => frames.delete(id)));
+    const onUpdate = vi.fn();
+    const onComplete = vi.fn();
+
+    createRoutePlayback({
+      stages: [{ durationMs: 1000, lineKeys: ["route"] }],
+      onUpdate,
+      onComplete,
+    }).play();
+
+    expect(requestAnimationFrame).toHaveBeenCalledOnce();
+    frames.get(1)?.(600);
+    expect(onUpdate).toHaveBeenLastCalledWith({ progress: { route: 0.5 }, currentPinKey: null, completed: false });
+    frames.get(2)?.(1100);
+    expect(onComplete).toHaveBeenCalledOnce();
+  });
+
+  it("does not start a frame when the initial update cancels playback", () => {
+    const animateValue = vi.fn();
+    const playback = createRoutePlayback({
+      stages: [{ durationMs: 1000, lineKeys: ["route"] }],
+      onUpdate: () => playback.cancel(),
+      animateValue,
+    });
+
+    playback.play();
+
+    expect(animateValue).not.toHaveBeenCalled();
+  });
+
+});
+
+describe("animateFrame", () => {
+  it.each([600, 1100])("honors stop called inside an update at timestamp %i", (now) => {
+    const frames = new Map<number, FrameRequestCallback>();
+    vi.spyOn(performance, "now").mockReturnValue(100);
+    vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => {
+      frames.set(1, callback);
+      return 1;
+    }));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn((id: number) => frames.delete(id)));
+    const onComplete = vi.fn();
+    const control = animateFrame(0, 1, { duration: 1, onUpdate: () => control.stop(), onComplete });
+
+    const frame = frames.get(1);
+    frames.delete(1);
+    frame?.(now);
+
+    expect(frames.size).toBe(0);
+    expect(onComplete).not.toHaveBeenCalled();
+  });
 });
 
 describe("pathAtProgress", () => {
-  it("interpolates the active segment without mutating the authored path", () => {
-    const path = [{ lat: 0, lng: 0 }, { lat: 10, lng: 10 }, { lat: 20, lng: 0 }];
+  it("moves at constant distance across uneven vertices without mutating the authored path", () => {
+    const path = [{ lat: 0, lng: 0 }, { lat: 1, lng: 0 }, { lat: 11, lng: 0 }];
 
-    expect(pathAtProgress(path, 0.25)).toEqual([{ lat: 0, lng: 0 }, { lat: 5, lng: 5 }]);
+    expect(pathAtProgress(path, 0.5)).toEqual([{ lat: 0, lng: 0 }, { lat: 1, lng: 0 }, { lat: 5.5, lng: 0 }]);
     expect(pathAtProgress(path, 1)).toEqual(path);
     expect(path).toHaveLength(3);
   });

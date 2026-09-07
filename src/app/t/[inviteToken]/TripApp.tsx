@@ -25,15 +25,12 @@ function MobileTripApp() {
   const [loadError, setLoadError] = useState("");
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelClosing, setPanelClosing] = useState(false);
-  const [focusOnOpen, setFocusOnOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState<DayNumber | null>(null);
   const [playbackRequest, setPlaybackRequest] = useState(0);
   const [completedDay, setCompletedDay] = useState<DayNumber | null>(null);
   const [playingAll, setPlayingAll] = useState(false);
   const [liveStatus, setLiveStatus] = useState("전체 5일 경로 표시 중");
   const closeTimer = useRef<number | null>(null);
-  const openButtonRef = useRef<HTMLButtonElement>(null);
-  const restoreOpenerFocus = useRef(false);
   const refreshController = useRef<AbortController | null>(null);
 
   const refresh = useCallback(async () => {
@@ -83,17 +80,8 @@ function MobileTripApp() {
     };
   }, [refresh]);
 
-  useEffect(() => {
-    if (!panelOpen && !panelClosing && restoreOpenerFocus.current) {
-      restoreOpenerFocus.current = false;
-      openButtonRef.current?.focus();
-    }
-  }, [panelClosing, panelOpen]);
-
-  function finishClose(afterClose?: () => void, shouldRestoreOpenerFocus = false) {
+  function finishClose(afterClose?: () => void) {
     setPanelClosing(true);
-    setFocusOnOpen(false);
-    restoreOpenerFocus.current = shouldRestoreOpenerFocus;
     if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
     closeTimer.current = window.setTimeout(() => {
       setPanelOpen(false);
@@ -169,14 +157,13 @@ function MobileTripApp() {
           selectedDay={selectedDay}
           allDaysSelected={playingAll}
           state={panelClosing ? "closing" : "open"}
-          focusOnOpen={focusOnOpen}
           onSelectAll={selectAllDays}
           onSelectDay={selectDay}
-          onClose={() => finishClose(undefined, true)}
+          onClose={() => finishClose()}
         />
       )}
       {!panelOpen && !panelClosing && (
-        <button ref={openButtonRef} type="button" className={styles.panelOpener} onClick={() => { setPanelOpen(true); setFocusOnOpen(true); }}>일정 패널 열기</button>
+        <button type="button" className={styles.panelOpener} onClick={() => setPanelOpen(true)}>일정 패널 열기</button>
       )}
       {completedDay === selectedDay && selectedDay && (
         <button type="button" className={styles.replay} onClick={replay} aria-label={playingAll ? "전체 일정 다시 재생" : `${selectedDay}일차 경로 다시 재생`}>↻ 재생</button>
@@ -187,8 +174,5 @@ function MobileTripApp() {
 }
 
 export function TripApp() {
-  const desktop = useMedia("(min-width: 768px)");
-  if (desktop === null) return null;
-  if (desktop) return <main className={styles.desktopGate}><p>휴대폰에서 접속해 주세요</p></main>;
   return <MobileTripApp />;
 }
