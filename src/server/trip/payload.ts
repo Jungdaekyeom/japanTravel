@@ -78,12 +78,17 @@ function reviewOpinion(opinion: OpinionRecord) {
 function publicRailRoutes(routes: readonly RouteGeometryRecord[], now: Date) {
   return routes.flatMap((route) => {
     if (route.status !== "finalized" || route.expiresAt <= now) return [];
+    const segment = PUBLIC_TRIP_DEFINITION.railSegments.find(({ key }) => key === route.segmentKey);
+    if (!segment) return [];
     try {
+      const geometry = decodePolyline(route.encodedPolyline);
+      // Previous snapshots ended at Tokyo; only a Ueno-reaching replacement is accepted.
+      if (segment.key === "odawara-tokyo" && Math.hypot(geometry.at(-1)![0] - 35.71377, geometry.at(-1)![1] - 139.77725) > 0.01) return [];
       return [{
-        segmentKey: route.segmentKey,
+        segmentKey: segment.key,
         status: "finalized" as const,
         label: "철도 이동" as const,
-        geometry: decodePolyline(route.encodedPolyline),
+        geometry,
       }];
     } catch {
       return [];

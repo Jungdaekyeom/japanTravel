@@ -149,7 +149,7 @@ function MobileTripApp() {
 
   return (
     <main className={styles.app}>
-      <GoogleTripMap railRoutes={payload.railRoutes} selectedTravelerId={null} selectedDay={selectedDay} playbackRequest={playbackRequest} reducedMotion={reducedMotion === true} onPlaybackComplete={playbackComplete} />
+      <GoogleTripMap railRoutes={payload.railRoutes} groundRoutes={payload.groundRoutes} selectedTravelerId={null} selectedDay={selectedDay} playbackRequest={playbackRequest} reducedMotion={reducedMotion === true} onPlaybackComplete={playbackComplete} />
       {loadError && <p className={styles.staleWarning} role="alert">최신 데이터를 불러오지 못했습니다. 기존 일정을 표시합니다.</p>}
       {(panelOpen || panelClosing) && (
         <TripPanel

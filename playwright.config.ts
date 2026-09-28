@@ -14,7 +14,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: `pnpm dev --hostname 127.0.0.1 --port ${port}`,
+    command: `pnpm dev --webpack --hostname 127.0.0.1 --port ${port}`,
     url: `http://127.0.0.1:${port}/`,
     reuseExistingServer: false,
     stdout: "pipe",

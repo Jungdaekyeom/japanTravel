@@ -117,7 +117,7 @@ function endpoints(input: ComputeRailRouteInput, placeIds: GoogleRoutePlaceIds) 
   switch (input.segmentKey) {
     case "kix-kyoto": return [placeIds.KIX, placeIds.KYOTO_STATION] as const;
     case "kyoto-odawara": return [placeIds.KYOTO_STATION, placeIds.ODAWARA_STATION] as const;
-    case "odawara-tokyo": return [placeIds.ODAWARA_STATION, placeIds.TOKYO_STATION] as const;
+    case "odawara-tokyo": return [placeIds.ODAWARA_STATION, "Ueno Station, Tokyo, Japan"] as const;
     case "tokyo-narita": return [input.naritaRailChoice === "skyliner" ? placeIds.KEISEI_UENO_STATION : placeIds.TOKYO_STATION, placeIds.NARITA_AIRPORT] as const;
   }
 }
@@ -144,7 +144,7 @@ export function createGoogleRoutesClient({
           },
           body: JSON.stringify({
             origin: { placeId: origin },
-            destination: { placeId: destination },
+            destination: input.segmentKey === "odawara-tokyo" ? { address: destination } : { placeId: destination },
             travelMode: "TRANSIT",
             departureTime: input.departureTime,
             computeAlternativeRoutes: true,

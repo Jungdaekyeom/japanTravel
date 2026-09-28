@@ -4,8 +4,12 @@
 .routeLegend { position: absolute; z-index: 2; top: max(12px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 8px; max-width: calc(100% - 154px); margin: 0; padding: 5px 7px; border: 1px solid rgba(139, 148, 158, 0.45); border-radius: 8px; background: rgba(255, 255, 255, 0.92); color: #24292f; font-size: 9px; font-weight: 700; list-style: none; }
 .routeLegend li { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .routeLegendSwatch { width: 13px; height: 4px; flex: none; border-radius: 999px; }
-.travelStatus, .plannedSchedule { position: absolute; z-index: 2; left: max(10px, env(safe-area-inset-left)); bottom: max(104px, calc(env(safe-area-inset-bottom) + 96px)); width: min(270px, calc(100% - 20px)); box-sizing: border-box; border: 1px solid rgba(139, 148, 158, 0.48); border-radius: 9px; background: rgba(255, 255, 255, 0.94); color: #24292f; padding: 7px 9px; font-size: 10px; pointer-events: none; }
-.travelStatus ul, .plannedSchedule ul { display: grid; gap: 2px; margin: 4px 0 0; padding: 0; list-style: none; }
+.plannedSchedule { position: absolute; z-index: 2; left: max(10px, env(safe-area-inset-left)); bottom: max(104px, calc(env(safe-area-inset-bottom) + 96px)); width: min(330px, calc(100% - 20px)); max-height: 48%; overflow-y: auto; box-sizing: border-box; border: 1px solid rgba(139, 148, 158, 0.48); border-radius: 9px; background: rgba(255, 255, 255, 0.94); color: #24292f; padding: 9px; font-size: 11px; }
+.plannedSchedule summary { min-height: 26px; align-content: center; cursor: pointer; font-weight: 700; }
+.plannedSchedule p { font-size: 10px; color: #57606a; }
+.plannedSchedule ul { display: grid; gap: 6px; margin: 6px 0 0; padding: 0; list-style: none; }
+.plannedSchedule small { display: block; margin-top: 2px; color: #57606a; }
+.routeNotice { position: absolute; left: 10px; bottom: max(76px, calc(env(safe-area-inset-bottom) + 68px)); margin: 0; padding: 3px 6px; border-radius: 4px; background: rgba(255, 255, 255, 0.94); color: #57606a; font-size: 10px; }
 .fallback .plannedSchedule { position: static; width: 100%; border-color: #30363d; background: rgba(13, 17, 23, 0.7); color: #f0f6fc; pointer-events: auto; }
 .googleAttribution { position: absolute; left: max(10px, env(safe-area-inset-left)); bottom: max(32px, calc(env(safe-area-inset-bottom) + 24px)); margin: 0; border-radius: 4px; background: rgba(255, 255, 255, 0.9); color: #3c4043; padding: 2px 4px; font-size: 9px; }
 .marker { display: flex; align-items: center; gap: 5px; transform: translateY(0); transition: transform 160ms ease; }

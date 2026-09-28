@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { InMemoryTripRepository } from "../../../../server/repository/memory";
+import { encodePolyline } from "../../../../server/routes/polyline";
 
 import { createTripHandler } from "./route";
 
@@ -20,7 +21,7 @@ describe("GET /api/trip/[inviteToken]", () => {
     const repository = new InMemoryTripRepository({ routeGeometry: [{
       segmentKey: "odawara-tokyo",
       status: "finalized",
-      encodedPolyline: "??_ibE_ibE",
+      encodedPolyline: encodePolyline([[35.25626, 139.15582], [35.71377, 139.77725]]),
       departureTime: "2026-10-04T00:00:00.000Z",
       naritaRailChoice: null,
       createdAt: new Date("2026-09-07T00:00:00.000Z"),

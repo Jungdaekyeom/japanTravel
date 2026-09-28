@@ -25,7 +25,7 @@ test("keeps private controls hidden and shows the shared departure schedule", as
   await expect(opener).toBeVisible();
   await expect(page.getByRole("tablist", { name: "여행자 선택" })).toHaveCount(0);
   await expect(page.getByRole("textbox")).toHaveCount(0);
-  const schedule = page.getByRole("region", { name: /1일차 .* 시간/ });
+  const schedule = page.locator("details").filter({ hasText: "1일차 · 10월 2일 예정 일정" });
   await expect(schedule).toContainText("정대겸");
   await expect(schedule).toContainText("06:00–07:00");
   await expect(schedule).toContainText("08:30–10:05");

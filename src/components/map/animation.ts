@@ -3,6 +3,7 @@ import { animateFrame } from "./frame-animation";
 export type PlaybackStage = {
   durationMs: number;
   lineKeys?: readonly string[];
+  sequential?: boolean;
   lineTimings?: Readonly<Record<string, { delayMs?: number; durationMs?: number }>>;
   pinKey?: string;
   focusPinKeys?: readonly string[];
@@ -34,28 +35,71 @@ type AnimateValue = (from: number, to: number, options: {
 
 const defaultAnimate: AnimateValue = (from, to, options) => animateFrame(from, to, options);
 
+const pathMetrics = new WeakMap<readonly Point[], { points: { x: number; y: number }[]; cumulative: number[]; total: number }>();
+
+function metrics(path: readonly Point[]) {
+  const cached = pathMetrics.get(path);
+  if (cached) return cached;
+  const points = path.map(({ lat, lng }) => ({
+    x: lng / 360,
+    y: Math.log(Math.tan(Math.PI / 4 + Math.max(-85, Math.min(85, lat)) * Math.PI / 360)) / (2 * Math.PI),
+  }));
+  const cumulative = [0];
+  for (let index = 1; index < points.length; index++) {
+    cumulative.push(cumulative[index - 1] + Math.hypot(points[index].x - points[index - 1].x, points[index].y - points[index - 1].y));
+  }
+  const result = { points, cumulative, total: cumulative.at(-1) ?? 0 };
+  pathMetrics.set(path, result);
+  return result;
+}
+
+export function projectedPathLength(path: readonly Point[], zoom: number) {
+  return metrics(path).total * 256 * 2 ** zoom;
+}
+
+export function visualStages(
+  stages: readonly PlaybackStage[],
+  lines: readonly { key: string; path: readonly Point[] }[],
+  focusZoom: (keys: readonly string[]) => number,
+): PlaybackStage[] {
+  const byKey = new Map(lines.map((line) => [line.key, line]));
+  let zoom = 5;
+  return stages.map((stage) => {
+    if (stage.focusPinKeys) zoom = focusZoom(stage.focusPinKeys);
+    if (!stage.lineKeys?.length) return stage;
+    let end = 0;
+    let firstDuration = 0;
+    const lineTimings = Object.fromEntries(stage.lineKeys.map((key, index) => {
+      const line = byKey.get(key);
+      const durationMs = line ? projectedPathLength(line.path, zoom) / 240 * 1000 : 0;
+      if (index === 0) firstDuration = durationMs;
+      const delayMs = stage.sequential ? end : (stage.lineTimings?.[key]?.delayMs ?? 0) / stage.durationMs * firstDuration;
+      end = Math.max(end, delayMs + durationMs);
+      return [key, { delayMs, durationMs }];
+    }));
+    return { ...stage, durationMs: Math.max(1, end), lineTimings };
+  });
+}
+
 export function pathAtProgress<T extends Point>(path: readonly T[], progress: number): Point[] {
   if (path.length < 2) return [...path];
   const amount = Math.max(0, Math.min(1, progress));
   if (amount === 0) return [path[0]];
   if (amount === 1) return [...path];
 
-  let total = 0;
-  for (let index = 1; index < path.length; index += 1) {
-    total += Math.hypot(path[index].lat - path[index - 1].lat, path[index].lng - path[index - 1].lng);
-  }
+  const { points, cumulative, total } = metrics(path);
   const target = total * amount;
-  let traveled = 0;
   for (let index = 1; index < path.length; index += 1) {
-    const from = path[index - 1];
-    const to = path[index];
-    const distance = Math.hypot(to.lat - from.lat, to.lng - from.lng);
-    if (traveled + distance < target) {
-      traveled += distance;
-      continue;
-    }
-    const fraction = distance === 0 ? 0 : (target - traveled) / distance;
-    return [...path.slice(0, index), { lat: from.lat + (to.lat - from.lat) * fraction, lng: from.lng + (to.lng - from.lng) * fraction }];
+    if (cumulative[index] < target) continue;
+    const from = points[index - 1];
+    const to = points[index];
+    const distance = cumulative[index] - cumulative[index - 1];
+    const fraction = distance === 0 ? 0 : (target - cumulative[index - 1]) / distance;
+    const y = from.y + (to.y - from.y) * fraction;
+    return [...path.slice(0, index), {
+      lat: (2 * Math.atan(Math.exp(y * 2 * Math.PI)) - Math.PI / 2) * 180 / Math.PI,
+      lng: (from.x + (to.x - from.x) * fraction) * 360,
+    }];
   }
   return [...path];
 }
