@@ -321,14 +321,39 @@ const DAEKYEOM = ["daekyeom"] as const;
 const CAPITAL_TRAVELERS = ["gyuyeol", "junsu", "gyujun"] as const;
 const ICHEON_TRAVELERS = ["gyuyeol", "junsu"] as const;
 const GYUJUN = ["gyujun"] as const;
+const path = (from: PlaceKey, to: PlaceKey, ...via: Coordinate[]) => [place(from), ...via, place(to)];
 
 const fallbackGroundPaths: Partial<Record<GroundRouteKey, readonly { kind: GroundKind; path: readonly Coordinate[] }[]>> = {
+  "icheon-terminal": [{ kind: "connector", path: path("icheon", "icheonTerminal", { lat: 37.2741, lng: 127.4390 }, { lat: 37.2768, lng: 127.4441 }) }],
+  "terminal-icn": [{ kind: "bus", path: path("icheonTerminal", "incheon", { lat: 37.302, lng: 127.384 }, { lat: 37.354, lng: 127.205 }, { lat: 37.425, lng: 126.972 }, { lat: 37.500, lng: 126.807 }, { lat: 37.482, lng: 126.650 }) }],
   "mandeok-pus": [{ kind: "car", path: MANDEOK_PUS_PATH }],
   "suwon-gmp": [{ kind: "car", path: SUWON_GMP_PATH }],
   "kyoto-kiyomizu": [{ kind: "bus", path: KYOTO_KIYOMIZU_BUS_PATH }, { kind: "walk", path: KYOTO_KIYOMIZU_WALK_PATH }],
   "kiyomizu-ginkaku": [{ kind: "walk", path: KIYOMIZU_GION_WALK_PATH }, { kind: "bus", path: GION_GINKAKU_BUS_PATH }, { kind: "walk", path: GINKAKU_ARRIVAL_WALK_PATH }],
   "ginkaku-kinkaku": [{ kind: "walk", path: GINKAKU_DEPARTURE_WALK_PATH }, { kind: "bus", path: GINKAKU_KINKAKU_BUS_PATH }, { kind: "walk", path: KINKAKU_ARRIVAL_WALK_PATH }],
   "kinkaku-kyoto": [{ kind: "walk", path: KINKAKU_DEPARTURE_WALK_PATH }, { kind: "bus", path: KINKAKU_KYOTO_BUS_PATH }],
+  "kyoto-hotel": [{ kind: "walk", path: path("kyoto", "nono", { lat: 34.9872, lng: 135.7599 }, { lat: 34.9882, lng: 135.7617 }) }],
+  "hotel-kyoto": [{ kind: "walk", path: path("nono", "kyoto", { lat: 34.9880, lng: 135.7614 }, { lat: 34.9870, lng: 135.7596 }) }],
+  "odawara-ryuguden": [{ kind: "bus", path: path("odawara", "ryuguden", { lat: 35.245, lng: 139.126 }, { lat: 35.235, lng: 139.086 }, { lat: 35.228, lng: 139.045 }, { lat: 35.218, lng: 139.016 }) }],
+  "ryuguden-odawara": [{ kind: "bus", path: path("ryuguden", "odawara", { lat: 35.218, lng: 139.016 }, { lat: 35.228, lng: 139.045 }, { lat: 35.235, lng: 139.086 }, { lat: 35.245, lng: 139.126 }) }],
+  "ueno-aima": [{ kind: "walk", path: path("ueno", "aima", { lat: 35.7128, lng: 139.7773 }, { lat: 35.7116, lng: 139.7774 }) }],
+  "aima-tenkai": [{ kind: "walk", path: path("aima", "tenkai", { lat: 35.7107, lng: 139.7765 }) }],
+  "tenkai-aima": [{ kind: "walk", path: path("tenkai", "aima", { lat: 35.7107, lng: 139.7765 }) }],
+  "aima-ueno": [{ kind: "walk", path: path("aima", "ueno", { lat: 35.7116, lng: 139.7774 }, { lat: 35.7128, lng: 139.7773 }) }],
+  "ueno-nakameguro": [{ kind: "rail", path: path("ueno", "nakameguro", { lat: 35.6984, lng: 139.7731 }, { lat: 35.6719, lng: 139.7659 }, { lat: 35.6628, lng: 139.7315 }, { lat: 35.6467, lng: 139.7101 }) }],
+  "nakameguro-roastery": [{ kind: "walk", path: path("nakameguro", "roastery", { lat: 35.6460, lng: 139.6979 }, { lat: 35.6478, lng: 139.6944 }) }],
+  "roastery-nakameguro": [{ kind: "walk", path: path("roastery", "nakameguro", { lat: 35.6478, lng: 139.6944 }, { lat: 35.6460, lng: 139.6979 }) }],
+  "nakameguro-roppongi": [{ kind: "rail", path: path("nakameguro", "roppongi", { lat: 35.6467, lng: 139.7101 }, { lat: 35.6547, lng: 139.7370 }) }],
+  "roppongi-shinjuku": [{ kind: "rail", path: path("roppongi", "shinjuku", { lat: 35.6728, lng: 139.7238 }, { lat: 35.6896, lng: 139.7006 }) }],
+  "shinjuku-iwamotocho": [{ kind: "rail", path: path("shinjuku", "iwamotocho", { lat: 35.6910, lng: 139.7357 }, { lat: 35.6955, lng: 139.7519 }, { lat: 35.6962, lng: 139.7634 }) }],
+  "iwamotocho-akihabara": [{ kind: "walk", path: path("iwamotocho", "akihabara", { lat: 35.6964, lng: 139.7749 }, { lat: 35.6974, lng: 139.7742 }) }],
+  "akihabara-ginza": [{ kind: "rail", path: path("akihabara", "ginza", { lat: 35.6896, lng: 139.7780 }, { lat: 35.6813, lng: 139.7745 }) }],
+  "ginza-ueno": [{ kind: "rail", path: path("ginza", "ueno", { lat: 35.6812, lng: 139.7671 }, { lat: 35.6973, lng: 139.7730 }) }],
+  "aima-keisei": [{ kind: "walk", path: path("aima", "keiseiUeno", { lat: 35.7107, lng: 139.7760 }, { lat: 35.7109, lng: 139.7749 }) }],
+  "icn2-suwon": [{ kind: "car", path: path("incheon2", "suwon", { lat: 37.482, lng: 126.650 }, { lat: 37.436, lng: 126.823 }, { lat: 37.345, lng: 126.930 }) }],
+  "icn2-terminal": [{ kind: "bus", path: path("incheon2", "icheonTerminal", { lat: 37.482, lng: 126.650 }, { lat: 37.500, lng: 126.807 }, { lat: 37.425, lng: 126.972 }, { lat: 37.354, lng: 127.205 }) }],
+  "terminal-icheon": [{ kind: "connector", path: path("icheonTerminal", "icheon", { lat: 37.2768, lng: 127.4441 }, { lat: 37.2741, lng: 127.4390 }) }],
+  "pus-mandeok": [{ kind: "bus", path: path("busan", "mandeok", { lat: 35.194, lng: 128.956 }, { lat: 35.205, lng: 128.973 }, { lat: 35.211, lng: 129.001 }) }],
 };
 
 function groundLines(key: GroundRouteKey, verified?: PublicGroundRoute): MapLine[] {

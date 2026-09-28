@@ -14,6 +14,7 @@ describe("trip route geometry", () => {
       expect(lines.length, key).toBeGreaterThan(0);
       expect(lines.every((line) => line.path.length >= 2)).toBe(true);
       expect(lines.every((line) => line.dashed)).toBe(true);
+      expect(lines.every((line) => line.path.length > 2), `${key} must not be a straight endpoint connector`).toBe(true);
     }
   });
 
