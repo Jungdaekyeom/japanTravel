@@ -81,6 +81,50 @@ describe("buildDayLayers playback", () => {
     expect(stages[0].durationMs).toBeCloseTo(timings.walk.durationMs! + timings.bus.durationMs!, 5);
   });
 
+  it("keeps short movements visible", () => {
+    const stages = visualStages([{ durationMs: 1000, focusPinKeys: ["a", "b"] }, {
+      durationMs: 2000, lineKeys: ["short", "long"],
+      lineTimings: { short: { durationMs: 1000 }, long: { delayMs: 500, durationMs: 1500 } },
+    }], [
+      { key: "short", path: [{ lat: 35, lng: 135 }, { lat: 35, lng: 135.00001 }] },
+      { key: "long", path: [{ lat: 35, lng: 135 }, { lat: 35, lng: 135.001 }] },
+    ], () => 8);
+    expect(stages[1].lineTimings?.short.durationMs).toBeGreaterThanOrEqual(1200);
+    expect(stages[1].durationMs).toBeGreaterThanOrEqual(1200);
+  });
+
+  it("continues domestic travel off screen while the camera follows the next departure", () => {
+    const layers = buildDayLayers(1);
+    const stages = visualStages(layers.stages, layers.lines, () => 9);
+    const domestic = stages.find((stage) => stage.lineKeys?.includes("terminal-icn"))!;
+    expect(domestic.lineKeys).toEqual(["terminal-icn", "mandeok-pus", "suwon-gmp"]);
+    const timing = domestic.lineTimings!;
+    expect(timing["mandeok-pus"].delayMs).toBeLessThan(timing["terminal-icn"].durationMs!);
+    expect(timing["suwon-gmp"].delayMs).toBeLessThan(timing["mandeok-pus"].delayMs! + timing["mandeok-pus"].durationMs!);
+    expect(domestic.cameraCues?.map((cue) => cue.focusPinKeys)).toEqual([["mandeok", "busan"], ["suwon", "gimpo"]]);
+    expect(domestic.cameraCues![1].atMs - domestic.cameraCues![0].atMs).toBeGreaterThanOrEqual(1600);
+  });
+
+  it("retimes a resized playback without resetting progress or accepting stale frames", () => {
+    const motion = manualMotion();
+    const states: PlaybackState[] = [];
+    const onComplete = vi.fn();
+    const playback = createRoutePlayback({ stages: [{ durationMs: 2000, lineKeys: ["route"] }], animateValue: motion.animateValue, onUpdate: (state) => states.push(state), onComplete });
+    playback.play();
+    motion.calls[0].update(0.4);
+    playback.resize([{ durationMs: 4000, lineKeys: ["route"] }]);
+    expect(states.at(-1)?.progress.route).toBe(0.4);
+    expect(motion.calls[1].duration).toBeCloseTo(2.4);
+    motion.calls[0].update(0.1);
+    motion.calls[0].complete();
+    expect(states.at(-1)?.progress.route).toBe(0.4);
+    expect(onComplete).not.toHaveBeenCalled();
+    motion.calls[1].update(0.5);
+    expect(states.at(-1)?.progress.route).toBeCloseTo(0.7);
+    motion.calls[1].complete();
+    expect(onComplete).toHaveBeenCalledOnce();
+  });
+
   it("finishes immediately in reduced motion", () => {
     const layers = buildDayLayers(4);
     const motion = manualMotion();
@@ -116,6 +160,25 @@ describe("buildDayLayers playback", () => {
     motion.calls[0].update(0.5);
     expect(motion.calls[0].stopped).toBe(true);
     expect(onUpdate).toHaveBeenCalledTimes(before);
+  });
+
+  it("waits for a prepared map and never resumes a cancelled request", async () => {
+    const motion = manualMotion();
+    let ready!: () => void;
+    const waiting = new Promise<void>((resolve) => { ready = resolve; });
+    const onComplete = vi.fn();
+    const playback = createRoutePlayback({
+      stages: [{ durationMs: 1200, lineKeys: ["route"] }],
+      beforeStage: () => waiting,
+      animateValue: motion.animateValue, onUpdate: vi.fn(), onComplete,
+    });
+    playback.play();
+    expect(motion.calls).toHaveLength(0);
+    playback.cancel();
+    ready();
+    await waiting;
+    expect(motion.calls).toHaveLength(0);
+    expect(onComplete).not.toHaveBeenCalled();
   });
 
   it("uses frame timestamps rather than frame counts", () => {

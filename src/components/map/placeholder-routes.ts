@@ -448,9 +448,22 @@ export function buildDayLayers(
   switch (day) {
     case 1:
       journey("icheon-terminal");
-      journey("terminal-icn");
-      journey("mandeok-pus");
-      journey("suwon-gmp");
+      {
+        const routes = ["terminal-icn", "mandeok-pus", "suwon-gmp"].map(byRoute).filter((lines) => lines.length);
+        if (routes.length) {
+          focus(...routes[0][0].pinKeys);
+          const lines = routes.flat();
+          selectedLines.push(...lines);
+          stages.push({
+            durationMs: 1, lineKeys: lines.map((line) => line.key),
+            parallelRoutes: routes.map((route, index) => ({
+              lineKeys: route.map((line) => line.key), focusPinKeys: route[0].pinKeys,
+              // Keep the known departure order while the other teams continue off screen.
+              delayRatio: [0, 0.45, 0.8][index],
+            })),
+          });
+        }
+      }
       if (byRoute("pus-kix").length || byRoute("gmp-kix").length) {
         focus("busan", "gimpo", "kix");
         const flights = [...byRoute("pus-kix"), ...byRoute("gmp-kix")];
@@ -499,7 +512,7 @@ export function buildDayLayers(
       journey("aima-keisei");
       journey("tokyo-narita");
       if (byRoute("nrt-icn").length) {
-        focus("nrt", "busan", "incheon2");
+        stages.push({ durationMs: CAMERA_SETTLE_MS, focusPinKeys: ["nrt", "busan", "incheon2"] });
         move("nrt-icn");
         focus("incheon2", "suwon", "icheonTerminal");
         const homebound = [...byRoute("icn2-suwon"), ...byRoute("icn2-terminal")];
@@ -508,7 +521,7 @@ export function buildDayLayers(
         journey("terminal-icheon");
       }
       if (byRoute("nrt-pus").length) {
-        focus("nrt", "busan", "incheon2");
+        stages.push({ durationMs: CAMERA_SETTLE_MS, focusPinKeys: ["nrt", "busan", "incheon2"] });
         move("nrt-pus");
         journey("pus-mandeok");
       }

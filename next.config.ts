@@ -56,8 +56,6 @@ const sharedHeaders = [
 const nextConfig: NextConfig = {
   agentRules: false,
   experimental: { useTypeScriptCli: false },
-  // Route modules expose tested handler factories; standalone typecheck remains the release gate.
-  typescript: { ignoreBuildErrors: true },
   async headers() {
     return [
       {

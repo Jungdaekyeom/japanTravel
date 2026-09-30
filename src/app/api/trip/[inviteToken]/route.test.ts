@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { InMemoryTripRepository } from "../../../../server/repository/memory";
 import { encodePolyline } from "../../../../server/routes/polyline";
 
-import { createTripHandler } from "./route";
+import { createTripHandler } from "./handler";
 
 describe("GET /api/trip/[inviteToken]", () => {
   it("uses a non-revealing not-found response for a wrong invite token", async () => {

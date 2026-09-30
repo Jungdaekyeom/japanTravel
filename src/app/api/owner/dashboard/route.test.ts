@@ -54,7 +54,7 @@ function request(authorization?: string, cookie?: string) {
 }
 
 async function handler(repository: InMemoryTripRepository) {
-  const route = await import("./route").catch(() => ({ createOwnerDashboardHandler: undefined }));
+  const route = await import("./handler").catch(() => ({ createOwnerDashboardHandler: undefined }));
   expect(route.createOwnerDashboardHandler).toBeTypeOf("function");
   return route.createOwnerDashboardHandler!({ repository, now: () => now });
 }

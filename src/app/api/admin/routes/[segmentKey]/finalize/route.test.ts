@@ -4,7 +4,7 @@ import { hashSessionToken } from "../../../../../../server/auth/crypto";
 import { InMemoryTripRepository } from "../../../../../../server/repository/memory";
 import type { GoogleRoutesClient } from "../../../../../../server/routes/google-routes";
 
-import { createFinalizeRailRouteHandler } from "./route";
+import { createFinalizeRailRouteHandler } from "./handler";
 
 const now = new Date("2026-09-06T15:00:00.000Z");
 const departureTime = "2026-10-02T01:00:00.000Z";

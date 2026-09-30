@@ -6,7 +6,7 @@ import { InMemoryTripRepository } from "../../../../server/repository/memory";
 const bearerToken = "b".repeat(43);
 
 async function handler(repository: InMemoryTripRepository) {
-  const route = await import("./route").catch(() => ({ createDeleteOwnerSessionHandler: undefined }));
+  const route = await import("./handler").catch(() => ({ createDeleteOwnerSessionHandler: undefined }));
   expect(route.createDeleteOwnerSessionHandler).toBeTypeOf("function");
   return route.createDeleteOwnerSessionHandler!({ repository });
 }

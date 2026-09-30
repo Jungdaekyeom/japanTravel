@@ -69,6 +69,8 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, groundRoutes = E
       libraries.current = loaded;
       const nextMap = new loaded.maps.Map(mapElement.current, {
         mapId,
+        renderingType: "VECTOR",
+        tilt: 0,
         center: DEFAULT_CAMERA.center,
         zoom: DEFAULT_CAMERA.zoom,
         disableDefaultUI: true,
@@ -113,6 +115,8 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, groundRoutes = E
           position: pin.position,
           ...(pin.label ? { title: pin.label } : {}),
           content,
+          anchorLeft: "-50%",
+          anchorTop: "-50%",
         });
       });
       setLoadState("ready");
@@ -225,7 +229,25 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, groundRoutes = E
     let renderedFocusProgress: number | undefined;
     let transitionStartProgress = 0;
     let cameraTransition: { from: CameraFrame; to: CameraFrame } | null = null;
+    let cameraReady = true;
+    let cameraWait: { promise: Promise<void>; finish: () => void } | undefined;
+    const tilesListener = currentMap.addListener("tilesloaded", () => {
+      cameraReady = true;
+      cameraWait?.finish();
+    });
+    const waitForTiles = () => {
+      if (cameraReady) return;
+      if (cameraWait) return cameraWait.promise;
+      let finish!: () => void;
+      const promise = new Promise<void>((resolve) => {
+        const timer = setTimeout(() => finish(), 2500);
+        finish = () => { clearTimeout(timer); cameraReady = true; cameraWait = undefined; resolve(); };
+      });
+      cameraWait = { promise, finish };
+      return promise;
+    };
     const handleResize = () => {
+      playback.current?.resize(visualStages(layers.stages, layers.lines, (keys) => cameraForPins(currentMap, keys, routeLines).zoom));
       if (!intendedFocusPinKeys) {
         fitDay(currentMap, selectedDay, routeLines, selectedTravelerId);
         return;
@@ -247,6 +269,8 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, groundRoutes = E
     if (alreadyCompleted || !initialFocusPinKeys) fitDay(currentMap, selectedDay, routeLines, selectedTravelerId);
 
     const clearSelection = () => {
+      tilesListener.remove();
+      cameraWait?.finish();
       selectedLines.current.forEach((lines) => lines.forEach((line) => line.setMap(null)));
       selectedLines.current.clear();
       markers.current.forEach((marker) => { marker.map = currentMap; });
@@ -267,6 +291,7 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, groundRoutes = E
     const routePlayback = createRoutePlayback({
       stages: visualStages(layers.stages, layers.lines, (keys) => cameraForPins(currentMap, keys, routeLines).zoom),
       reducedMotion,
+      beforeStage: (stage) => stage.lineKeys?.length ? waitForTiles() : undefined,
       onUpdate(state) {
         showLabels(state.completed
           ? terminalLabelKeys
@@ -291,6 +316,7 @@ export function GoogleTripMap({ railRoutes = EMPTY_RAIL_ROUTES, groundRoutes = E
             const remainingProgress = transitionStartProgress >= 1
               ? 1
               : Math.max(0, (focusProgress - transitionStartProgress) / (1 - transitionStartProgress));
+            cameraReady = false;
             moveCamera(currentMap, cameraTransition, remainingProgress);
           }
         }
@@ -373,18 +399,23 @@ function useRouteLines(railRoutes: readonly PublicRailRoute[], groundRoutes: rea
   return snapshot.lines;
 }
 
-function dashIcon(color: string) {
-  return [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 1, strokeColor: color, scale: 3 }, offset: "0", repeat: "12px" }];
+function dashIcon(color: string, selected: boolean): google.maps.IconSequence[] {
+  return [{ icon: { path: "M 0,-1 0,1", strokeOpacity: selected ? 1 : 0.2, strokeColor: color, scale: selected ? 2.5 : 1.5 }, offset: "0", repeat: "10px" }];
 }
 
 function polylineStyle(line: MapLine, selected: boolean): google.maps.PolylineOptions {
   const color = line.color;
   const dashed = line.dashed;
+  const icons: google.maps.IconSequence[] = dashed ? dashIcon(color, selected) : [];
+  if (selected) icons.push({
+    icon: { path: "M -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0", fillColor: color, fillOpacity: 1, strokeColor: "#fff", strokeOpacity: 1, strokeWeight: 2, scale: 5 },
+    offset: "100%",
+  });
   return {
     strokeColor: color,
-    strokeOpacity: dashed ? 0 : selected ? 0.95 : 0.62,
+    strokeOpacity: dashed ? 0 : selected ? 0.95 : 0.2,
     strokeWeight: selected ? 3.5 : 2,
-    icons: dashed ? dashIcon(color) : undefined,
+    icons: icons.length ? icons : undefined,
   };
 }
 
@@ -403,6 +434,7 @@ function createPolylineLayers(
       ...polylineStyle(line, true),
       strokeColor: line.outlineColor,
       strokeWeight: 6,
+      icons: [],
       map,
       path: renderedPath,
       zIndex: zIndex - 1,
@@ -478,13 +510,23 @@ function mercatorY(latitude: number) {
 }
 
 function moveCamera(map: google.maps.Map, transition: { from: CameraFrame; to: CameraFrame }, progress: number) {
-  const eased = progress * progress * (3 - 2 * progress);
+  const ease = (value: number) => value * value * (3 - 2 * value);
+  const travelZoom = Math.min(transition.from.zoom, transition.to.zoom,
+    cameraForPoints(map, [transition.from.center, transition.to.center], CAMERA_PADDING).zoom);
+  const distant = Math.max(transition.from.zoom, transition.to.zoom) - travelZoom > 2;
+  const panProgress = distant ? Math.max(0, Math.min(1, (progress - 0.25) / 0.5)) : progress;
+  const eased = ease(panProgress);
+  const zoom = distant
+    ? progress < 0.5
+      ? transition.from.zoom + (travelZoom - transition.from.zoom) * ease(Math.min(1, progress / 0.3))
+      : travelZoom + (transition.to.zoom - travelZoom) * ease(Math.max(0, (progress - 0.7) / 0.3))
+    : transition.from.zoom + (transition.to.zoom - transition.from.zoom) * ease(progress);
   map.moveCamera({
     center: {
       lat: transition.from.center.lat + (transition.to.center.lat - transition.from.center.lat) * eased,
       lng: transition.from.center.lng + (transition.to.center.lng - transition.from.center.lng) * eased,
     },
-    zoom: transition.from.zoom + (transition.to.zoom - transition.from.zoom) * eased,
+    zoom,
   });
 }
 

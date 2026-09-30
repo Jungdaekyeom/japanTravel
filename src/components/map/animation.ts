@@ -4,6 +4,11 @@ export type PlaybackStage = {
   durationMs: number;
   lineKeys?: readonly string[];
   sequential?: boolean;
+  parallelRoutes?: readonly {
+    lineKeys: readonly string[];
+    focusPinKeys: readonly string[];
+    delayRatio: number;
+  }[];
   lineTimings?: Readonly<Record<string, { delayMs?: number; durationMs?: number }>>;
   pinKey?: string;
   focusPinKeys?: readonly string[];
@@ -63,15 +68,40 @@ export function visualStages(
   focusZoom: (keys: readonly string[]) => number,
 ): PlaybackStage[] {
   const byKey = new Map(lines.map((line) => [line.key, line]));
+  const durationAt = (key: string, zoom: number, minimumMs = 1200) => {
+    const line = byKey.get(key);
+    return line ? Math.max(minimumMs, projectedPathLength(line.path, zoom) / 240 * 1000) : minimumMs;
+  };
   let zoom = 5;
   return stages.map((stage) => {
     if (stage.focusPinKeys) zoom = focusZoom(stage.focusPinKeys);
     if (!stage.lineKeys?.length) return stage;
+    if (stage.parallelRoutes?.length) {
+      const lineTimings: Record<string, { delayMs: number; durationMs: number }> = {};
+      const cameraCues: NonNullable<PlaybackStage["cameraCues"]>[number][] = [];
+      let firstDuration = 0;
+      let durationMs = 0;
+      let previousStartMs = 0;
+      stage.parallelRoutes.forEach((route, index) => {
+        const routeZoom = focusZoom(route.focusPinKeys);
+        const startMs = index === 0 ? 0 : Math.max(firstDuration * route.delayRatio, previousStartMs + 1600);
+        previousStartMs = startMs;
+        let endMs = startMs;
+        for (const key of route.lineKeys) {
+          const lineDuration = durationAt(key, routeZoom, 2200);
+          lineTimings[key] = { delayMs: endMs, durationMs: lineDuration };
+          endMs += lineDuration;
+        }
+        if (index === 0) firstDuration = endMs;
+        else cameraCues.push({ atMs: startMs, durationMs: 1000, focusPinKeys: route.focusPinKeys });
+        durationMs = Math.max(durationMs, endMs);
+      });
+      return { ...stage, durationMs, lineTimings, cameraCues };
+    }
     let end = 0;
     let firstDuration = 0;
     const lineTimings = Object.fromEntries(stage.lineKeys.map((key, index) => {
-      const line = byKey.get(key);
-      const durationMs = line ? projectedPathLength(line.path, zoom) / 240 * 1000 : 0;
+      const durationMs = durationAt(key, zoom);
       if (index === 0) firstDuration = durationMs;
       const delayMs = stage.sequential ? end : (stage.lineTimings?.[key]?.delayMs ?? 0) / stage.durationMs * firstDuration;
       end = Math.max(end, delayMs + durationMs);
@@ -152,6 +182,7 @@ function cameraAt(stage: PlaybackStage, elapsedMs: number, stageProgress: number
 
 type PlaybackOptions = {
   stages: readonly PlaybackStage[];
+  beforeStage?: (stage: PlaybackStage) => Promise<void> | undefined;
   reducedMotion?: boolean;
   onUpdate: (state: PlaybackState) => void;
   onComplete?: () => void;
@@ -165,11 +196,14 @@ export function createRoutePlayback(options: PlaybackOptions) {
   let cancelled = false;
   let finished = false;
   let stageIndex = 0;
+  let stages = [...options.stages];
+  let lastStageProgress = 0;
+  let revision = 0;
   const progress: Record<string, number> = {};
 
   function completedProgress() {
     return Object.fromEntries(
-      options.stages.flatMap((stage) => stage.lineKeys ?? []).map((key) => [key, 1]),
+      stages.flatMap((stage) => stage.lineKeys ?? []).map((key) => [key, 1]),
     );
   }
 
@@ -181,6 +215,7 @@ export function createRoutePlayback(options: PlaybackOptions) {
   }
 
   function update(stage: PlaybackStage, stageProgress: number) {
+    lastStageProgress = stageProgress;
     for (const key of stage.lineKeys ?? []) progress[key] = lineProgressAt(stage, key, stageProgress);
     const elapsedMs = stage.durationMs * stageProgress;
     const currentMinute = minuteAt(stage, elapsedMs);
@@ -194,23 +229,30 @@ export function createRoutePlayback(options: PlaybackOptions) {
     });
   }
 
-  function playStage() {
+  function playStage(fromProgress = 0) {
     if (cancelled) return;
-    const stage = options.stages[stageIndex];
+    const activeRevision = ++revision;
+    const stage = stages[stageIndex];
     if (!stage) return finish();
-    update(stage, 0);
+    update(stage, fromProgress);
     if (cancelled) return;
-    control = animateValue(0, 1, {
-      duration: stage.durationMs / 1000,
+    const startAnimation = () => {
+      if (cancelled || activeRevision !== revision) return;
+      control = animateValue(0, 1, {
+      duration: stage.durationMs * (1 - fromProgress) / 1000,
       ease: "linear",
-      onUpdate: (value) => { if (!cancelled) update(stage, value); },
+      onUpdate: (value) => { if (!cancelled && activeRevision === revision) update(stage, fromProgress + (1 - fromProgress) * value); },
       onComplete: () => {
-        if (cancelled) return;
+        if (cancelled || activeRevision !== revision) return;
         update(stage, 1);
         stageIndex += 1;
         playStage();
       },
-    });
+      });
+    };
+    const ready = options.beforeStage?.(stage);
+    if (ready) void ready.then(startAnimation, startAnimation);
+    else startAnimation();
   }
 
   return {
@@ -223,6 +265,25 @@ export function createRoutePlayback(options: PlaybackOptions) {
     cancel() {
       cancelled = true;
       control?.stop();
+    },
+    resize(nextStages: readonly PlaybackStage[]) {
+      if (!started || cancelled || finished) return;
+      const current = stages[stageIndex];
+      const next = nextStages[stageIndex];
+      if (!current || !next) return;
+      const scale = next.durationMs / current.durationMs;
+      stages = [...nextStages];
+      // Preserve every line's progress and departure order while changing the remaining speed.
+      stages[stageIndex] = {
+        ...current, durationMs: next.durationMs,
+        lineTimings: current.lineTimings && Object.fromEntries(Object.entries(current.lineTimings).map(([key, timing]) => [key, {
+          delayMs: (timing.delayMs ?? 0) * scale,
+          durationMs: (timing.durationMs ?? current.durationMs) * scale,
+        }])),
+        cameraCues: current.cameraCues?.map((cue) => ({ ...cue, atMs: cue.atMs * scale, durationMs: cue.durationMs * scale })),
+      };
+      control?.stop();
+      playStage(lastStageProgress);
     },
   };
 }

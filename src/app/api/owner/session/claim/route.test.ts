@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { hashSessionToken } from "../../../../../server/auth/crypto";
 import { InMemoryTripRepository } from "../../../../../server/repository/memory";
 import type { TripRepository } from "../../../../../server/repository/types";
-import { createClaimHandler as createLegacyClaimHandler } from "../../../session/claim/route";
+import { createClaimHandler as createLegacyClaimHandler } from "../../../session/claim/handler";
 
 const repositoryMock = vi.hoisted(() => ({ current: undefined as TripRepository | undefined }));
 vi.mock("../../../../../server/repository", () => ({
@@ -40,7 +40,7 @@ function request(token: string) {
 }
 
 async function handler(dependencies: unknown) {
-  const route = await import("./route").catch(() => ({ createOwnerClaimHandler: undefined }));
+  const route = await import("./handler").catch(() => ({ createOwnerClaimHandler: undefined }));
   expect(route.createOwnerClaimHandler).toBeTypeOf("function");
   return route.createOwnerClaimHandler!(dependencies as never);
 }
@@ -60,7 +60,7 @@ describe("POST /api/owner/session/claim", () => {
     vi.stubEnv("SUPABASE_SECRET_KEY", "sb_secret_example");
     vi.stubEnv("SESSION_PEPPER", "test-pepper-1234");
     vi.stubEnv("INVITE_TOKEN", "");
-    const { POST } = await import("./route");
+    const { POST } = await import("./handler");
 
     const response = await POST(request(ownerToken));
 

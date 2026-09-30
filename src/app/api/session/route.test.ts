@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { hashSessionToken } from "../../../server/auth/crypto";
 import { InMemoryTripRepository } from "../../../server/repository/memory";
 
-import { createDeleteSessionHandler } from "./route";
+import { createDeleteSessionHandler } from "./handler";
 
 describe("DELETE /api/session", () => {
   it("removes the stored hash and clears the HttpOnly session cookie", async () => {

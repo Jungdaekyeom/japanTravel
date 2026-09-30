@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { hashSessionToken } from "../../../../../server/auth/crypto";
 import { InMemoryTripRepository } from "../../../../../server/repository/memory";
 
-import { createAcceptRejectionHandler } from "./route";
+import { createAcceptRejectionHandler } from "./handler";
 
 const now = new Date("2026-08-28T00:00:00.000Z");
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { InMemoryTripRepository } from "../../../server/repository/memory";
 
-import { createTripHandler } from "./route";
+import { createTripHandler } from "./handler";
 
 describe("GET /api/trip", () => {
   it("returns the shared trip without a token or role fields", async () => {

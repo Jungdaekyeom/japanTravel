@@ -4,6 +4,7 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { GoogleTripMap } from "./GoogleTripMap";
+import type { TravelerId } from "../../trip/travelers";
 import { buildDayLayers, FULL_ROUTE_LINES } from "./placeholder-routes";
 
 const animations: Array<{ stopped: boolean; complete: () => void; update: (value: number) => void }> = [];
@@ -22,11 +23,19 @@ vi.mock("./frame-animation", () => ({
 class FakeMap {
   static instances: FakeMap[] = [];
   static size = { width: 390, height: 844 };
+  static automaticTiles = true;
+  listeners = new Set<() => void>();
+  addListener = (_event: string, callback: () => void) => {
+    this.listeners.add(callback);
+    return { remove: () => this.listeners.delete(callback) };
+  };
+  loadTiles() { this.listeners.forEach((listener) => listener()); }
   center: google.maps.LatLngLiteral;
   zoom: number;
   moveCamera = vi.fn((camera: { center: google.maps.LatLngLiteral; zoom: number }) => {
     this.center = camera.center;
     this.zoom = camera.zoom;
+    if (FakeMap.automaticTiles) this.loadTiles();
   });
   fitBounds = vi.fn();
   setCenter = vi.fn();
@@ -122,6 +131,7 @@ afterEach(() => {
   animations.length = 0;
   FakeMap.instances = [];
   FakeMap.size = { width: 390, height: 844 };
+  FakeMap.automaticTiles = true;
   FakePolyline.instances = [];
   FakeMarker.instances = [];
   FakeResizeObserver.instances = [];
@@ -137,9 +147,9 @@ afterAll(() => {
 describe("GoogleTripMap", () => {
   it("renders the full route in the actual map viewport and refits on resize", async () => {
     render(<GoogleTripMap selectedTravelerId={null} selectedDay={null} playbackRequest={0} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
-    await waitFor(() => expect(FakeMap.instances).toHaveLength(1));
+    await waitFor(() => expect(FakeMap.instances[0]?.moveCamera).toHaveBeenCalled());
     const map = FakeMap.instances[0];
-    expect(map.options).toMatchObject({ mapId: "test-map", keyboardShortcuts: false, isFractionalZoomEnabled: true });
+    expect(map.options).toMatchObject({ mapId: "test-map", renderingType: "VECTOR", tilt: 0, keyboardShortcuts: false, isFractionalZoomEnabled: true });
     expect(map.moveCamera).toHaveBeenLastCalledWith(cameraForAll());
     expect(FakePolyline.instances.filter((line) => line.options.zIndex === 1)).toHaveLength(FULL_ROUTE_LINES.length);
     FakeResizeObserver.instances[0].resize(844, 390);
@@ -168,12 +178,41 @@ describe("GoogleTripMap", () => {
     expect(FakePolyline.instances.filter((line) => line.options.zIndex === 3).length).toBeGreaterThan(5);
   });
 
-  it("uses the same MAX camera for the Day 5 return flight as the initial view", async () => {
-    render(<GoogleTripMap selectedTravelerId={null} selectedDay={5} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+  it.each([null, "daekyeom", "gyujun", "gyuyeol", "junsu"] as (TravelerId | null)[])("uses the initial MAX camera for Day 5, including traveler %s", async (traveler) => {
+    render(<GoogleTripMap selectedTravelerId={traveler} selectedDay={5} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
     await waitFor(() => expect(pending()).toHaveLength(1));
     for (let stage = 0; stage < 4; stage += 1) act(() => completeNext());
     act(() => pending().at(-1)?.update(1));
     expect(FakeMap.instances[0].moveCamera).toHaveBeenLastCalledWith(cameraForAll());
+  });
+
+  it("preserves the growing route on resize and on unchanged route data refresh", async () => {
+    const onComplete = vi.fn();
+    const props = { selectedTravelerId: null, selectedDay: 2 as const, playbackRequest: 1, reducedMotion: false, onPlaybackComplete: onComplete };
+    const { rerender } = render(<GoogleTripMap {...props} railRoutes={[]} />);
+    await waitFor(() => expect(pending()).toHaveLength(1));
+    act(() => completeNext());
+    act(() => pending().at(-1)?.update(0.4));
+    const line = FakePolyline.instances.find((item) => item.options.zIndex === 3)!;
+    const before = JSON.stringify(line.path);
+    const old = pending().at(-1)!;
+    act(() => FakeResizeObserver.instances[0].resize(844, 390));
+    expect(old.stopped).toBe(true);
+    expect(JSON.stringify(line.path)).toBe(before);
+    const count = animations.length;
+    rerender(<GoogleTripMap {...props} railRoutes={[]} />);
+    expect(animations).toHaveLength(count);
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it.each([1, 2, 3, 4, 5] as const)("finishes day %s without a mid-playback fitBounds jump", async (day) => {
+    const onComplete = vi.fn();
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={day} playbackRequest={1} reducedMotion={false} onPlaybackComplete={onComplete} />);
+    await waitFor(() => expect(pending()).toHaveLength(1));
+    const stages = buildDayLayers(day).stages;
+    for (let index = 0; index < stages.length; index++) act(() => completeNext());
+    expect(onComplete).toHaveBeenCalledExactlyOnceWith(day);
+    expect(FakeMap.instances[0].fitBounds).not.toHaveBeenCalled();
   });
 
   it("cancels stale playback when the selected traveler changes", async () => {
@@ -215,5 +254,38 @@ describe("GoogleTripMap", () => {
     ]));
     expect(solid?.options.icons).toBeUndefined();
     expect(FakePolyline.instances.some((line) => line.options.icons !== undefined)).toBe(true);
+  });
+
+  it("makes a growing provisional route distinguishable from its background", async () => {
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={2} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+    await waitFor(() => expect(pending()).toHaveLength(1));
+    const background = FakePolyline.instances.find((line) => line.options.zIndex === 1)!;
+    const foreground = FakePolyline.instances.find((line) => line.options.zIndex === 3)!;
+    const baseIcons = background.options.icons as google.maps.IconSequence[];
+    const activeIcons = foreground.options.icons as google.maps.IconSequence[];
+    expect(activeIcons[0].icon!.strokeOpacity).toBeGreaterThan(baseIcons[0].icon!.strokeOpacity!);
+    expect(activeIcons.some((icon) => icon.offset === "100%")).toBe(true);
+    expect((foreground.path as unknown[]).length).toBe(1);
+    act(() => completeNext());
+    act(() => pending().at(-1)?.update(0.5));
+    expect((foreground.path as unknown[]).length).toBeGreaterThan(1);
+  });
+
+  it("starts movement after visible map tiles load", async () => {
+    FakeMap.automaticTiles = false;
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={2} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+    await waitFor(() => expect(pending()).toHaveLength(1));
+    act(() => completeNext());
+    expect(pending()).toHaveLength(0);
+    await act(async () => FakeMap.instances[0].loadTiles());
+    expect(pending()).toHaveLength(1);
+  });
+
+  it("anchors markers at the dot and keeps the label out of their layout width", async () => {
+    render(<GoogleTripMap selectedTravelerId={null} selectedDay={4} playbackRequest={1} reducedMotion={false} onPlaybackComplete={vi.fn()} />);
+    await waitFor(() => expect(pending()).toHaveLength(1));
+    for (const marker of FakeMarker.instances) {
+      expect(marker.options).toMatchObject({ anchorLeft: "-50%", anchorTop: "-50%" });
+    }
   });
 });
